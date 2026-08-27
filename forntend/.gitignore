@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+
+# Node
+node_modules/
+dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets
+*.key
+*.pem
+*.p12
+
+# Test/temporary
+coverage/
+temp/
