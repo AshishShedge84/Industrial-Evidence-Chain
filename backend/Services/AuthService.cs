@@ -141,6 +141,33 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<AuthUserDto?> GetCurrentUserAsync(Guid userId)
+    {
+        var user = await _db.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .SingleOrDefaultAsync(u => u.UserId == userId);
+
+        if (user is null)
+            return null;
+
+        var roles = user.UserRoles
+            .Select(ur => ur.Role.Name)
+            .ToList();
+
+        var primaryRole = roles.FirstOrDefault() ?? AppRoles.Technician;
+
+        return new AuthUserDto
+        {
+            Id = user.UserId,
+            Username = user.Username,
+            Email = user.Email,
+            FullName = user.FullName,
+            Role = primaryRole,
+            Status = user.IsActive ? "active" : "pending"
+        };
+    }
+
     // ── JWT generation ────────────────────────────────────────────────────────
 
     private (string Token, DateTime ExpiresAt) BuildJwt(

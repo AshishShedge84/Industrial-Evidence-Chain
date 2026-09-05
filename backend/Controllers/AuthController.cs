@@ -96,5 +96,50 @@ public class AuthController : ControllerBase
             }, traceId));
         }
     }
+
+    /// <summary>
+    /// Retrieves the profile of the currently authenticated user based on the JWT subject claim.
+    /// </summary>
+    /// <response code="200">Returns current user profile.</response>
+    /// <response code="401">Unauthorized: Missing, invalid, or expired token, or invalid user identity claim.</response>
+    /// <response code="404">User profile not found.</response>
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(ApiResponse<AuthUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        var traceId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+
+        var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                       ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrWhiteSpace(subClaim) || !Guid.TryParse(subClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "UNAUTHORIZED",
+                Message = "Invalid or missing user identity in token.",
+                StatusCode = StatusCodes.Status401Unauthorized,
+                TraceId = traceId
+            }, traceId));
+        }
+
+        var profile = await _auth.GetCurrentUserAsync(userId);
+        if (profile is null)
+        {
+            return NotFound(ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "NOT_FOUND",
+                Message = "User profile not found.",
+                StatusCode = StatusCodes.Status404NotFound,
+                TraceId = traceId
+            }, traceId));
+        }
+
+        return Ok(ApiResponse<AuthUserDto>.SuccessResult(profile, traceId));
+    }
 }
+
 

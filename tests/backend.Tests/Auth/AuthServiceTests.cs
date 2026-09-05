@@ -242,5 +242,64 @@ public class AuthServiceTests : IDisposable
         Assert.Contains("Technician", roleClaims);
     }
 
+    // ── GetCurrentUserAsync ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetCurrentUser_WithExistingUserId_ReturnsAuthUserDto()
+    {
+        var existingUser = await _db.Users.FirstAsync(u => u.Username == "testuser");
+
+        var result = await _sut.GetCurrentUserAsync(existingUser.UserId);
+
+        Assert.NotNull(result);
+        Assert.Equal(existingUser.UserId, result.Id);
+        Assert.Equal("testuser", result.Username);
+        Assert.Equal("test@example.com", result.Email);
+        Assert.Equal("Test User", result.FullName);
+        Assert.Equal("Technician", result.Role);
+        Assert.Equal("active", result.Status);
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_WithPendingInactiveUser_ReturnsPendingStatus()
+    {
+        var pendingUser = new User
+        {
+            UserId       = Guid.NewGuid(),
+            Username     = "pendingtech",
+            Email        = "pending@example.com",
+            FullName     = "Pending Tech",
+            PasswordHash = PasswordHasher.Hash("ValidPass123!"),
+            IsActive     = false,
+            CreatedAt    = DateTime.UtcNow
+        };
+        _db.Users.Add(pendingUser);
+        var role = await _db.Roles.FirstAsync(r => r.Name == "Technician");
+        _db.UserRoles.Add(new UserRole
+        {
+            UserRoleId = Guid.NewGuid(),
+            UserId     = pendingUser.UserId,
+            RoleId     = role.RoleId,
+            AssignedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetCurrentUserAsync(pendingUser.UserId);
+
+        Assert.NotNull(result);
+        Assert.Equal(pendingUser.UserId, result.Id);
+        Assert.Equal("pendingtech", result.Username);
+        Assert.Equal("pending", result.Status);
+        Assert.Equal("Technician", result.Role);
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_WithNonExistentUserId_ReturnsNull()
+    {
+        var result = await _sut.GetCurrentUserAsync(Guid.NewGuid());
+
+        Assert.Null(result);
+    }
+
     public void Dispose() => _db.Dispose();
 }
