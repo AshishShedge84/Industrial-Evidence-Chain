@@ -65,6 +65,7 @@ builder.Services.Configure<FileStorageSettings>(
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
