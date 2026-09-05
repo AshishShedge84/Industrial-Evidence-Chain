@@ -1,0 +1,179 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using backend.Data;
+using backend.DTOs.Auth;
+using backend.Helpers;
+using backend.Models;
+using backend.Services.Interfaces;
+using backend.Settings;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+
+namespace backend.Services;
+
+/// <summary>
+/// Implements JWT-based authentication against the PostgreSQL user store.
+/// Password verification uses PBKDF2-SHA256 via PasswordHasher.
+/// </summary>
+public class AuthService : IAuthService
+{
+    private readonly AppDbContext _db;
+    private readonly JwtSettings _jwt;
+
+    public AuthService(AppDbContext db, IOptions<JwtSettings> jwtOptions)
+    {
+        _db = db;
+        _jwt = jwtOptions.Value;
+    }
+
+    public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto request)
+    {
+        var input = request.UsernameOrEmail.Trim();
+
+        // Load user with roles in one query; match username OR email
+        var user = await _db.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .Where(u => u.IsActive &&
+                       (u.Username == input || u.Email == input))
+            .SingleOrDefaultAsync();
+
+        if (user is null)
+            return null;
+
+        if (!PasswordHasher.Verify(request.Password, user.PasswordHash))
+            return null;
+
+        var roles = user.UserRoles
+            .Select(ur => ur.Role.Name)
+            .ToList();
+
+        var primaryRole = roles.FirstOrDefault() ?? AppRoles.Technician;
+        var (token, expiresAt) = BuildJwt(user.UserId, user.Username, user.Email, user.FullName, roles);
+        var expiresInSeconds = (int)Math.Max(0, (expiresAt - DateTime.UtcNow).TotalSeconds);
+
+        return new LoginResponseDto
+        {
+            AccessToken = token,
+            RefreshToken = null, // Refresh tokens not yet supported in this foundation batch
+            ExpiresIn = expiresInSeconds,
+            User = new AuthUserDto
+            {
+                Id = user.UserId,
+                Username = user.Username,
+                Email = user.Email,
+                FullName = user.FullName,
+                Role = primaryRole,
+                Status = user.IsActive ? "active" : "pending"
+            }
+        };
+    }
+
+    public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
+    {
+        var username = request.Username.Trim();
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        // 1. Check uniqueness of Username and Email
+        var usernameExists = await _db.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
+        if (usernameExists)
+            throw new InvalidOperationException("Username is already taken.");
+
+        var emailExists = await _db.Users.AnyAsync(u => u.Email.ToLower() == email);
+        if (emailExists)
+            throw new InvalidOperationException("Email is already registered.");
+
+        // 2. Assign default standard role (Technician). Public users cannot self-assign any other role.
+        var targetRole = AppRoles.Technician;
+
+        // 3. Find Role entity in DB, or create if not present
+        var role = await _db.Roles.SingleOrDefaultAsync(r => r.Name.ToLower() == targetRole.ToLower());
+        if (role is null)
+        {
+            role = new Role
+            {
+                RoleId = Guid.NewGuid(),
+                Name = targetRole,
+                Description = $"{targetRole} role"
+            };
+            _db.Roles.Add(role);
+        }
+
+        // 4. Create user in Pending / inactive state (IsActive = false)
+        var user = new User
+        {
+            UserId = Guid.NewGuid(),
+            Username = username,
+            Email = email,
+            FullName = request.FullName.Trim(),
+            PasswordHash = PasswordHasher.Hash(request.Password),
+            IsActive = false, // Pending admin approval
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var userRole = new UserRole
+        {
+            UserRoleId = Guid.NewGuid(),
+            UserId = user.UserId,
+            RoleId = role.RoleId,
+            AssignedAt = DateTime.UtcNow,
+            User = user,
+            Role = role
+        };
+
+        _db.Users.Add(user);
+        _db.UserRoles.Add(userRole);
+
+        await _db.SaveChangesAsync();
+
+        return new RegisterResponseDto
+        {
+            UserId = user.UserId,
+            Username = user.Username,
+            Email = user.Email,
+            FullName = user.FullName,
+            Roles = new[] { role.Name },
+            IsActive = user.IsActive,
+            Message = "Registration successful. Your account is pending administrator approval before you can log in.",
+            CreatedAt = user.CreatedAt
+        };
+    }
+
+    // ── JWT generation ────────────────────────────────────────────────────────
+
+    private (string Token, DateTime ExpiresAt) BuildJwt(
+        Guid userId, string username, string email, string fullName, IList<string> roles)
+    {
+        var key         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Secret));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiresAt   = DateTime.UtcNow.AddMinutes(_jwt.ExpiryMinutes);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub,        userId.ToString()),
+            new(JwtRegisteredClaimNames.UniqueName, username),
+            new(JwtRegisteredClaimNames.Email,      email),
+            new(JwtRegisteredClaimNames.GivenName,  fullName),
+            new(JwtRegisteredClaimNames.Jti,        Guid.NewGuid().ToString()),
+        };
+
+        // Add role claims — used later by RBAC policies
+        foreach (var role in roles)
+            claims.Add(new Claim(ClaimTypes.Role, role));
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject            = new ClaimsIdentity(claims),
+            Expires            = expiresAt,
+            Issuer             = _jwt.Issuer,
+            Audience           = _jwt.Audience,
+            SigningCredentials = credentials
+        };
+
+        var handler = new JwtSecurityTokenHandler();
+        var token   = handler.CreateToken(tokenDescriptor);
+        return (handler.WriteToken(token), expiresAt);
+    }
+}
