@@ -1,5 +1,6 @@
 using System.Text;
 using backend.Data;
+using backend.Middleware;
 using backend.Models;
 using backend.Services;
 using backend.Services.Interfaces;
@@ -54,6 +55,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireAuditor", policy => policy.RequireRole(AppRoles.Auditor, AppRoles.Admin));
 });
 
+// ── Global Exception Handling ─────────────────────────────────────────────────
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 // ── Application Services ──────────────────────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
@@ -98,6 +103,8 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // ── HTTP Pipeline ─────────────────────────────────────────────────────────────
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -110,3 +117,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
