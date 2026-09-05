@@ -57,6 +57,7 @@ builder.Services.AddAuthorization(options =>
 // ── Application Services ──────────────────────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
