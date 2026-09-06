@@ -56,6 +56,17 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireEvidenceCreator", policy => policy.RequireRole(AppRoles.Technician, AppRoles.Manager, AppRoles.Admin));
 });
 
+// ── CORS Configuration ────────────────────────────────────────────────────────
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+              .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+              .WithHeaders("Authorization", "Content-Type");
+    });
+});
+
 // ── Global Exception Handling ─────────────────────────────────────────────────
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -120,6 +131,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("FrontendDev");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
