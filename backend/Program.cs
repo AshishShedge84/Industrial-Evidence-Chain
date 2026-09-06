@@ -53,6 +53,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireManager", policy => policy.RequireRole(AppRoles.Manager, AppRoles.Admin));
     options.AddPolicy("RequireTechnician", policy => policy.RequireRole(AppRoles.Technician, AppRoles.Admin));
     options.AddPolicy("RequireAuditor", policy => policy.RequireRole(AppRoles.Auditor, AppRoles.Admin));
+    options.AddPolicy("RequireEvidenceCreator", policy => policy.RequireRole(AppRoles.Technician, AppRoles.Manager, AppRoles.Admin));
 });
 
 // ── Global Exception Handling ─────────────────────────────────────────────────
@@ -66,9 +67,11 @@ builder.Services.Configure<FileStorageSettings>(
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAssetService, AssetService>();
+builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddSingleton<IBlockchainAdapter, MockBlockchainAdapter>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
