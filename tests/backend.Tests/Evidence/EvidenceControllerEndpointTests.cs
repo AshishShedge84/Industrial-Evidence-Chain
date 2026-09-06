@@ -402,5 +402,95 @@ public class EvidenceControllerEndpointTests : IDisposable
         Assert.Equal("CONFLICT", response.Error!.Code);
     }
 
+    [Fact]
+    public async Task VerifyEvidence_AliasRoute_ReturnsVerifiedStatus()
+    {
+        SetUserContext(_auditorUserId, AppRoles.Auditor);
+
+        var created = await _evidenceService.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Safety,
+            Timestamp = DateTime.UtcNow,
+            Description = "Route alias contract test"
+        }, _techUserId);
+
+        await _evidenceService.SubmitEvidenceAsync(created.EvidenceId, _techUserId);
+
+        // Verify that VerifyEvidence handles the verification ID and returns valid structure
+        var actionResult = await _controller.VerifyEvidence(created.EvidenceId);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<EvidenceVerificationResponseDto>>(okResult.Value);
+
+        Assert.True(response.Success);
+        Assert.True(response.Data!.IsValid);
+        Assert.Equal("VERIFIED", response.Data.Status);
+        Assert.Equal(created.EvidenceId, response.Data.EvidenceId);
+        Assert.NotNull(response.Data.CalculatedHash);
+        Assert.NotNull(response.Data.TrustedHash);
+        Assert.NotNull(response.Data.TransactionId);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenNotFound_Returns404NotFound()
+    {
+        SetUserContext(_auditorUserId, AppRoles.Auditor);
+
+        var nonExistentId = Guid.NewGuid();
+        var actionResult = await _controller.VerifyEvidence(nonExistentId);
+
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<EvidenceVerificationResponseDto>>(notFoundResult.Value);
+
+        Assert.False(response.Success);
+        Assert.Equal("EVIDENCE_NOT_FOUND", response.Error!.Code);
+    }
+
+    [Fact]
+    public async Task GetEvidenceVerification_WhenNotFound_Returns404NotFound()
+    {
+        SetUserContext(_auditorUserId, AppRoles.Auditor);
+
+        var nonExistentId = Guid.NewGuid();
+        var actionResult = await _controller.GetEvidenceVerification(nonExistentId);
+
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<EvidenceVerificationResponseDto>>(notFoundResult.Value);
+
+        Assert.False(response.Success);
+        Assert.Equal("EVIDENCE_NOT_FOUND", response.Error!.Code);
+    }
+
+    [Fact]
+    public async Task GetEvidenceMedia_WhenNotFound_Returns404NotFound()
+    {
+        SetUserContext(_auditorUserId, AppRoles.Auditor);
+
+        var nonExistentId = Guid.NewGuid();
+        var actionResult = await _controller.GetEvidenceMedia(nonExistentId);
+
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<IReadOnlyList<EvidenceMediaDto>>>(notFoundResult.Value);
+
+        Assert.False(response.Success);
+        Assert.Equal("EVIDENCE_NOT_FOUND", response.Error!.Code);
+    }
+
+    [Fact]
+    public async Task SubmitEvidence_WhenNotFound_Returns404NotFound()
+    {
+        SetUserContext(_techUserId, AppRoles.Technician);
+
+        var nonExistentId = Guid.NewGuid();
+        var actionResult = await _controller.SubmitEvidence(nonExistentId);
+
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<EvidenceDto>>(notFoundResult.Value);
+
+        Assert.False(response.Success);
+        Assert.Equal("EVIDENCE_NOT_FOUND", response.Error!.Code);
+    }
+
     public void Dispose() => _db.Dispose();
 }
