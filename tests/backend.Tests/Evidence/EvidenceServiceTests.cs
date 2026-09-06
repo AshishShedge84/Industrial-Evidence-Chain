@@ -462,6 +462,210 @@ public class EvidenceServiceTests : IDisposable
         Assert.True(verification.IsValid);
         Assert.Equal("VERIFIED", verification.Status);
         Assert.Equal("TX-MOCK-12345", verification.TransactionId);
+        Assert.Equal(verification.CalculatedHash, verification.TrustedHash);
+        Assert.Null(verification.Error);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenIntegrityMismatch_ReturnsIntegrityMismatchStatus()
+    {
+        var mockAdapter = new MismatchBlockchainAdapter();
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(mockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sutWithAdapter = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sutWithAdapter.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Inspection,
+            Timestamp = DateTime.UtcNow,
+            Description = "Integrity mismatch test"
+        }, _userId);
+
+        await sutWithAdapter.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+
+        var verification = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+
+        Assert.NotNull(verification);
+        Assert.False(verification.IsValid);
+        Assert.Equal("INTEGRITY_MISMATCH", verification.Status);
+        Assert.NotNull(verification.CalculatedHash);
+        Assert.NotNull(verification.TrustedHash);
+        Assert.NotEqual(verification.CalculatedHash, verification.TrustedHash);
+        Assert.NotNull(verification.Error);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenProofNotFound_ReturnsProofNotFoundStatus()
+    {
+        var mockAdapter = new MissingProofBlockchainAdapter();
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(mockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sutWithAdapter = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sutWithAdapter.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Inspection,
+            Timestamp = DateTime.UtcNow,
+            Description = "Missing proof test"
+        }, _userId);
+
+        await sutWithAdapter.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+
+        var verification = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+
+        Assert.NotNull(verification);
+        Assert.False(verification.IsValid);
+        Assert.Equal("PROOF_NOT_FOUND", verification.Status);
+        Assert.NotNull(verification.Error);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenAdapterFails_ReturnsFailedStatus()
+    {
+        var mockAdapter = new FailingBlockchainAdapter();
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(mockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sutWithAdapter = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sutWithAdapter.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Inspection,
+            Timestamp = DateTime.UtcNow,
+            Description = "Adapter failure test"
+        }, _userId);
+
+        await sutWithAdapter.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+
+        var verification = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+
+        Assert.NotNull(verification);
+        Assert.False(verification.IsValid);
+        Assert.Equal("FAILED", verification.Status);
+        Assert.NotNull(verification.Error);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenNonExistent_ThrowsNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.VerifyEvidenceAsync(nonExistentId));
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenPendingNotAnchored_ReturnsPendingStatus()
+    {
+        var evidence = await _sut.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Maintenance,
+            Timestamp = DateTime.UtcNow,
+            Description = "Draft evidence"
+        }, _userId);
+
+        var verification = await _sut.VerifyEvidenceAsync(evidence.EvidenceId);
+
+        Assert.NotNull(verification);
+        Assert.False(verification.IsValid);
+        Assert.Equal("PENDING", verification.Status);
+        Assert.Null(verification.TransactionId);
+        Assert.NotNull(verification.CalculatedHash);
+        Assert.NotNull(verification.Error);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_RepeatedCalls_IsSafeAndIdempotent()
+    {
+        var mockAdapter = new TestBlockchainAdapter();
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(mockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sutWithAdapter = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sutWithAdapter.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Audit,
+            Timestamp = DateTime.UtcNow,
+            Description = "Idempotency test"
+        }, _userId);
+
+        await sutWithAdapter.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+
+        var verify1 = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+        var verify2 = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+
+        Assert.Equal(verify1.IsValid, verify2.IsValid);
+        Assert.Equal(verify1.Status, verify2.Status);
+        Assert.Equal(verify1.CalculatedHash, verify2.CalculatedHash);
+        Assert.Equal(verify1.TrustedHash, verify2.TrustedHash);
+        Assert.Equal(verify1.TransactionId, verify2.TransactionId);
+    }
+
+    [Fact]
+    public async Task SubmitAndVerify_WithMockBlockchainAdapter_FullLifecycleWorks()
+    {
+        var realMockAdapter = new MockBlockchainAdapter(NullLogger<MockBlockchainAdapter>.Instance);
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(realMockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sutWithAdapter = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sutWithAdapter.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Inspection,
+            Timestamp = DateTime.UtcNow,
+            Latitude = 45.123m,
+            Longitude = -73.456m,
+            Description = "Full lifecycle with MockBlockchainAdapter"
+        }, _userId);
+
+        var submitted = await sutWithAdapter.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+        Assert.Equal(AnchorStatus.Anchored, submitted.AnchorStatus);
+        Assert.NotNull(submitted.EvidenceHash);
+
+        var verified = await sutWithAdapter.VerifyEvidenceAsync(evidence.EvidenceId);
+        Assert.True(verified.IsValid);
+        Assert.Equal("VERIFIED", verified.Status);
+        Assert.Equal(submitted.EvidenceHash, verified.CalculatedHash);
+        Assert.Equal(submitted.EvidenceHash, verified.TrustedHash);
+        Assert.NotNull(verified.TransactionId);
+
+        // Confirm proof exists in adapter
+        var proof = await realMockAdapter.GetEvidenceProofAsync(evidence.EvidenceId);
+        Assert.NotNull(proof);
+        Assert.Equal(submitted.EvidenceHash, proof.EvidenceHash);
     }
 
     public void Dispose() => _db.Dispose();
@@ -499,6 +703,102 @@ public class EvidenceServiceTests : IDisposable
                 TransactionId = "TX-MOCK-12345",
                 AnchoredAt = DateTime.UtcNow
             });
+        }
+    }
+
+    private class MismatchBlockchainAdapter : IBlockchainAdapter
+    {
+        public Task<AnchorEvidenceResult> AnchorEvidenceAsync(AnchorEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new AnchorEvidenceResult
+            {
+                Status = "ANCHORED",
+                TransactionId = "TX-MISMATCH-123",
+                ProofReference = $"proof-{parameters.EvidenceId}",
+                AnchoredAt = DateTime.UtcNow
+            });
+        }
+
+        public Task<VerifyEvidenceResult> VerifyEvidenceAsync(VerifyEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new VerifyEvidenceResult
+            {
+                IsValid = false,
+                Status = "INTEGRITY_MISMATCH",
+                CalculatedHash = parameters.CalculatedHash,
+                TrustedHash = "trusted-different-hash-value-000000000000000000000000000000000000",
+                TransactionId = "TX-MISMATCH-123",
+                Error = "Calculated hash does not match trusted hash on ledger."
+            });
+        }
+
+        public Task<EvidenceProof?> GetEvidenceProofAsync(Guid evidenceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EvidenceProof?>(null);
+        }
+    }
+
+    private class MissingProofBlockchainAdapter : IBlockchainAdapter
+    {
+        public Task<AnchorEvidenceResult> AnchorEvidenceAsync(AnchorEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new AnchorEvidenceResult
+            {
+                Status = "ANCHORED",
+                TransactionId = "TX-MISSING-123",
+                ProofReference = $"proof-{parameters.EvidenceId}",
+                AnchoredAt = DateTime.UtcNow
+            });
+        }
+
+        public Task<VerifyEvidenceResult> VerifyEvidenceAsync(VerifyEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new VerifyEvidenceResult
+            {
+                IsValid = false,
+                Status = "PROOF_NOT_FOUND",
+                CalculatedHash = parameters.CalculatedHash,
+                TrustedHash = null,
+                TransactionId = null,
+                Error = "Proof not found on blockchain."
+            });
+        }
+
+        public Task<EvidenceProof?> GetEvidenceProofAsync(Guid evidenceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EvidenceProof?>(null);
+        }
+    }
+
+    private class FailingBlockchainAdapter : IBlockchainAdapter
+    {
+        public Task<AnchorEvidenceResult> AnchorEvidenceAsync(AnchorEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new AnchorEvidenceResult
+            {
+                Status = "ANCHORED",
+                TransactionId = "TX-FAIL-123",
+                ProofReference = $"proof-{parameters.EvidenceId}",
+                AnchoredAt = DateTime.UtcNow
+            });
+        }
+
+        public Task<VerifyEvidenceResult> VerifyEvidenceAsync(VerifyEvidenceParams parameters, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new VerifyEvidenceResult
+            {
+                IsValid = false,
+                Status = "FAILED",
+                CalculatedHash = parameters.CalculatedHash,
+                TrustedHash = null,
+                TransactionId = null,
+                Error = "Blockchain connection timeout."
+            });
+        }
+
+        public Task<EvidenceProof?> GetEvidenceProofAsync(Guid evidenceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EvidenceProof?>(null);
         }
     }
 }
