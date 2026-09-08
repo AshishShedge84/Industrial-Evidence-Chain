@@ -1,0 +1,33 @@
+{
+  "name": "industrial-evidence-chain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Industrial Evidence Chain — A Blockchain-Based Industrial Evidence & Audit Management Platform",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "start:blockchain": "npm --prefix blockchain start",
+    "test:blockchain": "npm --prefix blockchain test",
+    "build:blockchain": "npm --prefix blockchain run build",
+    "demo:tamper": "npm --prefix blockchain run demo:tamper",
+    "experiment:all": "npm --prefix blockchain run experiment:all",
+    "test:all": "npm --prefix blockchain test"
+  },
+  "workspaces": [
+    "frontend",
+    "blockchain"
+  ],
+  "keywords": [
+    "industrial-evidence-chain",
+    "hyperledger-fabric",
+    "blockchain",
+    "react",
+    "dotnet",
+    "audit-trail",
+    "evidence-integrity"
+  ],
+  "author": "Industrial Evidence Chain Team",
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,60 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "tech@iec.app",
+      "firstName": "John",
+      "lastName": "Smith",
+      "role": "Technician",
+      "status": "active",
+      "bio": "Industrial technician specializing in asset verification.",
+      "contactNumber": "+91 98765 43210",
+      "avatarType": "memoji",
+      "selectedMemoji": "Thinking",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "email": "manager@iec.app",
+      "firstName": "Sarah",
+      "lastName": "Connor",
+      "role": "Manager",
+      "status": "active",
+      "bio": "Operations manager overseeing Plant A.",
+      "contactNumber": "+91 98765 43211",
+      "avatarType": "memoji",
+      "selectedMemoji": "Hover",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "3",
+      "email": "auditor@iec.app",
+      "firstName": "Michael",
+      "lastName": "Chen",
+      "role": "Auditor",
+      "status": "active",
+      "bio": "External auditor for compliance.",
+      "contactNumber": "+91 98765 43212",
+      "avatarType": "memoji",
+      "selectedMemoji": "Thinking",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "4",
+      "email": "admin@iec.app",
+      "firstName": "Admin",
+      "lastName": "User",
+      "role": "Admin",
+      "status": "active",
+      "bio": "System administrator.",
+      "contactNumber": "+91 98765 43213",
+      "avatarType": "memoji",
+      "selectedMemoji": "Idle",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}

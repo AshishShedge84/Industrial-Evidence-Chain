@@ -1,0 +1,56 @@
+{
+  "notifications": [
+    {
+      "id": "notif-1",
+      "recipientId": "all",
+      "senderId": "2",
+      "senderName": "Sarah Connor",
+      "title": "New Message",
+      "message": "Check the generator vibration readings before completing the shift handover.",
+      "type": "message",
+      "read": false,
+      "createdAt": "2026-09-05T19:28:00.000Z",
+      "relatedEntity": "asset",
+      "relatedEntityId": "AST-0091"
+    },
+    {
+      "id": "notif-2",
+      "recipientId": "all",
+      "senderId": "4",
+      "senderName": "Admin User",
+      "title": "Evidence Update",
+      "message": "Evidence package reviewed and committed to Fabric channel ledger block #4912.",
+      "type": "success",
+      "read": false,
+      "createdAt": "2026-09-05T18:55:00.000Z",
+      "relatedEntity": "evidence",
+      "relatedEntityId": "EVI-3004"
+    },
+    {
+      "id": "notif-3",
+      "recipientId": "all",
+      "senderId": "3",
+      "senderName": "Michael Chen",
+      "title": "Chain Discrepancy Flag",
+      "message": "Verification timestamp divergence detected on Sector B inspection evidence.",
+      "type": "alert",
+      "read": true,
+      "createdAt": "2026-09-05T17:40:00.000Z",
+      "relatedEntity": "verification",
+      "relatedEntityId": "VER-1002"
+    },
+    {
+      "id": "notif-4",
+      "recipientId": "all",
+      "senderId": "1",
+      "senderName": "John Smith",
+      "title": "Turbine Calibration Note",
+      "message": "Turbine sensor calibration protocol completed. Please verify the physical seals.",
+      "type": "message",
+      "read": true,
+      "createdAt": "2026-09-05T16:30:00.000Z",
+      "relatedEntity": "asset",
+      "relatedEntityId": "AST-0042"
+    }
+  ]
+}
