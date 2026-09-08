@@ -22,4 +22,10 @@ public interface IAuthService
     /// Returns AuthUserDto on success; null if user is not found.
     /// </summary>
     Task<AuthUserDto?> GetCurrentUserAsync(Guid userId);
+
+    /// <summary>
+    /// Validates and rotates a refresh token, issuing a new JWT access token and new refresh token.
+    /// Detects replay attacks if a revoked token is used, invalidating all associated tokens.
+    /// </summary>
+    Task<RefreshTokenResponseDto?> RefreshTokenAsync(string refreshToken);
 }

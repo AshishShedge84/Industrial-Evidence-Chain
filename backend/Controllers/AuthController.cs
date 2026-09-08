@@ -140,6 +140,51 @@ public class AuthController : ControllerBase
 
         return Ok(ApiResponse<AuthUserDto>.SuccessResult(profile, traceId));
     }
+
+    /// <summary>
+    /// Refreshes an expired or expiring JWT access token using a valid refresh token.
+    /// Rotates the refresh token and detects potential token replay attacks.
+    /// </summary>
+    /// <response code="200">Token refresh successful. Returns new JWT access token and rotated refresh token.</response>
+    /// <response code="400">Request body failed validation.</response>
+    /// <response code="401">Refresh token is invalid, expired, revoked, or user is inactive.</response>
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(ApiResponse<RefreshTokenResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var result = await _auth.RefreshTokenAsync(request.RefreshToken);
+            if (result is null)
+            {
+                var traceId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString();
+                return Unauthorized(ApiResponse<RefreshTokenResponseDto>.ErrorResult(new ErrorResponseDto
+                {
+                    Code = "UNAUTHORIZED",
+                    Message = "Invalid or expired refresh token.",
+                    StatusCode = StatusCodes.Status401Unauthorized,
+                    TraceId = traceId
+                }, traceId));
+            }
+
+            var reqId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString();
+            return Ok(ApiResponse<RefreshTokenResponseDto>.SuccessResult(result, reqId));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            var traceId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString();
+            return Unauthorized(ApiResponse<RefreshTokenResponseDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "UNAUTHORIZED",
+                Message = ex.Message,
+                StatusCode = StatusCodes.Status401Unauthorized,
+                TraceId = traceId
+            }, traceId));
+        }
+    }
 }
-
-

@@ -41,6 +41,9 @@ public class LocalFileStorageServiceTests : IDisposable
         Assert.Equal("image/png", result.ContentType);
         Assert.Equal(MediaFileType.Image, result.FileType);
         Assert.Equal(sampleBytes.Length, result.FileSizeBytes);
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sampleBytes)).ToLowerInvariant();
+        Assert.Equal(expectedHash, result.FileHash);
+        Assert.Equal(64, result.FileHash.Length);
         Assert.StartsWith("/uploads/", result.StorageUrl);
         Assert.True(result.StoredAt <= DateTime.UtcNow);
     }

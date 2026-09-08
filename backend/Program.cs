@@ -11,10 +11,33 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
 
 // ── Database ──────────────────────────────────────────────────────────────────
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+
+// Interpolate environment variables if placeholders exist (e.g. ${DB_USER}, ${DB_PASSWORD})
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "postgres";
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD")
+                 ?? Environment.GetEnvironmentVariable("POSTGRES_PASSWORD")
+                 ?? string.Empty;
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST");
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT");
+var dbName = Environment.GetEnvironmentVariable("DB_NAME");
+
+var resolvedConnectionString = rawConnectionString
+    .Replace("${DB_USER}", dbUser)
+    .Replace("${DB_PASSWORD}", dbPassword);
+
+if (!string.IsNullOrEmpty(dbHost))
+    resolvedConnectionString = System.Text.RegularExpressions.Regex.Replace(resolvedConnectionString, @"Host=[^;]+", $"Host={dbHost}");
+if (!string.IsNullOrEmpty(dbPort))
+    resolvedConnectionString = System.Text.RegularExpressions.Regex.Replace(resolvedConnectionString, @"Port=[^;]+", $"Port={dbPort}");
+if (!string.IsNullOrEmpty(dbName))
+    resolvedConnectionString = System.Text.RegularExpressions.Regex.Replace(resolvedConnectionString, @"Database=[^;]+", $"Database={dbName}");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(resolvedConnectionString));
 
 // ── JWT Settings ──────────────────────────────────────────────────────────────
 builder.Services.Configure<JwtSettings>(
@@ -61,7 +84,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendDev", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.SetIsOriginAllowed(_ => true)
               .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
               .WithHeaders("Authorization", "Content-Type");
     });
@@ -130,11 +153,37 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "IEC API v1"));
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+// ── Static Files for Uploaded Evidence Media ──────────────────────────────────
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
 app.UseCors("FrontendDev");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// ── Database Auto-Migration & Seeding ─────────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var dbContext = services.GetRequiredService<AppDbContext>();
+    var config = services.GetRequiredService<IConfiguration>();
+    var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DbInitializer");
+    await DbInitializer.SeedAsync(dbContext, config, logger);
+}
 
 app.Run();
 

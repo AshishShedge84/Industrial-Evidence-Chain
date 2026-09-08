@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<EvidenceMedia> EvidenceMedia => Set<EvidenceMedia>();
     public DbSet<BlockchainProof> BlockchainProofs => Set<BlockchainProof>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -278,6 +279,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.FileSizeBytes)
                 .HasColumnName("file_size_bytes")
                 .HasColumnType("bigint");
+            entity.Property(e => e.FileHash)
+                .HasColumnName("file_hash")
+                .HasColumnType("text");
             entity.Property(e => e.UploadedAt)
                 .HasColumnName("uploaded_at")
                 .HasColumnType("timestamp with time zone")
@@ -384,6 +388,49 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── RefreshTokens ──────────────────────────────────────────────────────
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("refresh_tokens");
+            entity.HasKey(e => e.TokenId);
+            entity.Property(e => e.TokenId)
+                .HasColumnType("uuid")
+                .HasColumnName("token_id")
+                .HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.UserId)
+                .HasColumnType("uuid")
+                .HasColumnName("user_id")
+                .IsRequired();
+            entity.Property(e => e.TokenHash)
+                .HasColumnName("token_hash")
+                .HasColumnType("text")
+                .IsRequired();
+            entity.Property(e => e.ExpiresAt)
+                .HasColumnName("expires_at")
+                .HasColumnType("timestamp with time zone")
+                .IsRequired();
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.RevokedAt)
+                .HasColumnName("revoked_at")
+                .HasColumnType("timestamp with time zone");
+            entity.Property(e => e.ReplacedByTokenHash)
+                .HasColumnName("replaced_by_token_hash")
+                .HasColumnType("text");
+
+            entity.Ignore(e => e.IsActive);
+
+            entity.HasIndex(e => e.TokenHash).IsUnique().HasDatabaseName("ix_refresh_tokens_token_hash");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_refresh_tokens_user_id");
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

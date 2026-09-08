@@ -180,7 +180,7 @@ public class EvidenceServiceTests : IDisposable
         Assert.NotNull(retrieved);
         Assert.Equal(evidence.EvidenceId, retrieved.EvidenceId);
         Assert.Single(retrieved.MediaHashes);
-        Assert.Equal("/uploads/2026/09/valve_diagram.png", retrieved.MediaHashes[0]);
+        Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", retrieved.MediaHashes[0]);
     }
 
     [Fact]
@@ -666,6 +666,96 @@ public class EvidenceServiceTests : IDisposable
         var proof = await realMockAdapter.GetEvidenceProofAsync(evidence.EvidenceId);
         Assert.NotNull(proof);
         Assert.Equal(submitted.EvidenceHash, proof.EvidenceHash);
+    }
+
+    [Fact]
+    public async Task SubmitEvidence_WithAttachedMedia_PopulatesMediaHashesFromContentSHA256()
+    {
+        var realMockAdapter = new MockBlockchainAdapter(NullLogger<MockBlockchainAdapter>.Instance);
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(realMockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sut = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sut.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Maintenance,
+            Timestamp = DateTime.UtcNow,
+            Description = "Maintenance report with media"
+        }, _userId);
+
+        var photoBytes = "Original inspection image content"u8.ToArray();
+        using (var stream = new MemoryStream(photoBytes))
+        {
+            await sut.UploadMediaAsync(evidence.EvidenceId, stream, "pump_view.jpg", "image/jpeg", photoBytes.Length, _userId);
+        }
+
+        var expectedPhotoHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(photoBytes)).ToLowerInvariant();
+
+        var submitted = await sut.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+
+        Assert.Equal(AnchorStatus.Anchored, submitted.AnchorStatus);
+        Assert.Single(submitted.MediaHashes);
+        Assert.Equal(expectedPhotoHash, submitted.MediaHashes[0]);
+    }
+
+    [Fact]
+    public async Task VerifyEvidence_WhenPhysicalMediaTamperedOnDisk_DetectsTamperAndReturnsIntegrityMismatch()
+    {
+        var realMockAdapter = new MockBlockchainAdapter(NullLogger<MockBlockchainAdapter>.Instance);
+        var customServices = new ServiceCollection();
+        customServices.AddSingleton<IBlockchainAdapter>(realMockAdapter);
+        var customProvider = customServices.BuildServiceProvider();
+
+        var storagePath = Path.Combine(Path.GetTempPath(), "iec_tests_" + Guid.NewGuid().ToString("N"));
+        var storageOptions = Microsoft.Extensions.Options.Options.Create(new backend.Settings.FileStorageSettings { BasePath = storagePath });
+        var storageService = new LocalFileStorageService(storageOptions, NullLogger<LocalFileStorageService>.Instance);
+
+        var sut = new EvidenceService(_db, _hasher, _auditLogs, storageService, customProvider);
+
+        var evidence = await sut.CreateEvidenceAsync(new CreateEvidenceRequestDto
+        {
+            AssetId = _assetId,
+            ActivityType = ActivityType.Inspection,
+            Timestamp = DateTime.UtcNow,
+            Description = "Tamper detection test record"
+        }, _userId);
+
+        var photoBytes = "Genuine pristine photo bytes"u8.ToArray();
+        EvidenceMediaDto uploadResult;
+        using (var stream = new MemoryStream(photoBytes))
+        {
+            uploadResult = await sut.UploadMediaAsync(evidence.EvidenceId, stream, "evidence_photo.jpg", "image/jpeg", photoBytes.Length, _userId);
+        }
+
+        var submitted = await sut.SubmitEvidenceAsync(evidence.EvidenceId, _userId);
+        Assert.Equal(AnchorStatus.Anchored, submitted.AnchorStatus);
+
+        // Before tamper: verification must pass
+        var verifyBefore = await sut.VerifyEvidenceAsync(evidence.EvidenceId);
+        Assert.True(verifyBefore.IsValid);
+        Assert.Equal("VERIFIED", verifyBefore.Status);
+
+        // TAMPER: Modify the physical file content on disk directly behind the back of the DB
+        var relativeKey = uploadResult.StorageUrl.Replace("/uploads/", "");
+        var fullPhysicalPath = Path.Combine(storagePath, relativeKey.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(fullPhysicalPath));
+
+        // Overwrite file with forged content
+        await File.WriteAllBytesAsync(fullPhysicalPath, "Tampered and forged fraudulent image bytes"u8.ToArray());
+
+        // After tamper: live re-reading of physical file must detect the alteration and reject verification
+        var verifyAfter = await sut.VerifyEvidenceAsync(evidence.EvidenceId);
+        Assert.False(verifyAfter.IsValid);
+        Assert.Equal("INTEGRITY_MISMATCH", verifyAfter.Status);
+        Assert.NotNull(verifyAfter.Error);
+        Assert.Contains("tampered", verifyAfter.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose() => _db.Dispose();

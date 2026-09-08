@@ -117,7 +117,8 @@ public class AuthServiceTests : IDisposable
         Assert.Equal("Technician", result.User.Role);
         Assert.Equal("active", result.User.Status);
         Assert.True(result.ExpiresIn > 0);
-        Assert.Null(result.RefreshToken);
+        Assert.NotNull(result.RefreshToken);
+        Assert.NotEmpty(result.RefreshToken);
     }
 
     // ── Login: failures ───────────────────────────────────────────────────────
@@ -299,6 +300,134 @@ public class AuthServiceTests : IDisposable
         var result = await _sut.GetCurrentUserAsync(Guid.NewGuid());
 
         Assert.Null(result);
+    }
+
+    // ── Refresh Token Rotation ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Login_PersistsHashedRefreshTokenInDatabase()
+    {
+        var result = await _sut.LoginAsync(new LoginRequestDto
+        {
+            UsernameOrEmail = "testuser",
+            Password = "ValidPass123!"
+        });
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.RefreshToken);
+
+        var user = await _db.Users.FirstAsync(u => u.Username == "testuser");
+        var savedTokens = await _db.RefreshTokens.Where(t => t.UserId == user.UserId).ToListAsync();
+
+        Assert.Single(savedTokens);
+        Assert.NotEqual(result.RefreshToken, savedTokens[0].TokenHash); // Token is hashed in DB, never plaintext
+        Assert.True(savedTokens[0].IsActive);
+    }
+
+    [Fact]
+    public async Task RefreshToken_WithValidToken_RotatesTokenSuccessfully()
+    {
+        var loginResult = await _sut.LoginAsync(new LoginRequestDto
+        {
+            UsernameOrEmail = "testuser",
+            Password = "ValidPass123!"
+        });
+
+        var originalRefreshToken = loginResult!.RefreshToken!;
+
+        var refreshResult = await _sut.RefreshTokenAsync(originalRefreshToken);
+
+        Assert.NotNull(refreshResult);
+        Assert.False(string.IsNullOrWhiteSpace(refreshResult.AccessToken));
+        Assert.NotNull(refreshResult.RefreshToken);
+        Assert.NotEqual(originalRefreshToken, refreshResult.RefreshToken);
+        Assert.Equal("testuser", refreshResult.User!.Username);
+
+        // Verify old token is marked revoked and links to new token
+        var tokens = await _db.RefreshTokens.OrderBy(t => t.CreatedAt).ToListAsync();
+        Assert.Equal(2, tokens.Count);
+
+        var oldToken = tokens[0];
+        var newToken = tokens[1];
+
+        Assert.NotNull(oldToken.RevokedAt);
+        Assert.Equal(newToken.TokenHash, oldToken.ReplacedByTokenHash);
+        Assert.False(oldToken.IsActive);
+        Assert.True(newToken.IsActive);
+    }
+
+    [Fact]
+    public async Task RefreshToken_WithExpiredToken_ThrowsUnauthorizedAccessException()
+    {
+        var user = await _db.Users.FirstAsync(u => u.Username == "testuser");
+        var rawToken = "expired_raw_token_value_sample";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawToken))).ToLowerInvariant();
+
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            TokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            TokenHash = hash,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-5), // Expired
+            CreatedAt = DateTime.UtcNow.AddDays(-8)
+        });
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.RefreshTokenAsync(rawToken));
+        Assert.Contains("expired", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RefreshToken_WithRevokedToken_ReplayAttackRevokesAllUserTokensAndThrows()
+    {
+        var loginResult = await _sut.LoginAsync(new LoginRequestDto
+        {
+            UsernameOrEmail = "testuser",
+            Password = "ValidPass123!"
+        });
+
+        var firstToken = loginResult!.RefreshToken!;
+
+        // Rotate once: firstToken is now revoked, secondToken is active
+        var rotateResult = await _sut.RefreshTokenAsync(firstToken);
+        var secondToken = rotateResult!.RefreshToken!;
+
+        // Adversary re-submits the already-revoked firstToken
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.RefreshTokenAsync(firstToken));
+        Assert.Contains("revoked", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        // Verify that secondToken is now ALSO revoked as a security measure
+        var user = await _db.Users.FirstAsync(u => u.Username == "testuser");
+        var activeTokens = await _db.RefreshTokens
+            .Where(t => t.UserId == user.UserId && t.RevokedAt == null)
+            .ToListAsync();
+
+        Assert.Empty(activeTokens);
+    }
+
+    [Fact]
+    public async Task RefreshToken_WithNonExistentToken_ReturnsNull()
+    {
+        var result = await _sut.RefreshTokenAsync("completely_random_unknown_token");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task RefreshToken_WithInactiveUser_ThrowsUnauthorizedAccessException()
+    {
+        var user = await _db.Users.FirstAsync(u => u.Username == "testuser");
+        var loginResult = await _sut.LoginAsync(new LoginRequestDto
+        {
+            UsernameOrEmail = "testuser",
+            Password = "ValidPass123!"
+        });
+
+        // Deactivate user
+        user.IsActive = false;
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.RefreshTokenAsync(loginResult!.RefreshToken!));
+        Assert.Contains("inactive", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose() => _db.Dispose();

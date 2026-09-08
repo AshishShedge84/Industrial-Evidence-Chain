@@ -23,5 +23,6 @@ public class User
     public ICollection<Asset> AssignedAssets { get; set; } = new List<Asset>();
     public ICollection<EvidenceRecord> EvidenceRecords { get; set; } = new List<EvidenceRecord>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
 

@@ -20,7 +20,7 @@ public interface IEvidenceHasher
     string ComputeHash(CanonicalEvidencePayload payload);
 
     /// <summary>
-    /// Convenience method to compute SHA-256 hash directly from EvidenceRecord entity and optional media hashes.
+    /// Convenience method to compute SHA-256 hash directly from EvidenceRecord entity and optional media references/hashes.
     /// </summary>
-    string ComputeHash(EvidenceRecord record, IEnumerable<string>? mediaHashes = null);
+    string ComputeHash(EvidenceRecord record, IEnumerable<string>? mediaReferences = null);
 }

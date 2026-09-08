@@ -243,9 +243,9 @@ public class AssetController : ControllerBase
         var subClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                        ?? User.FindFirst("sub")?.Value;
 
-        if (Guid.TryParse(subClaim, out var userId))
+        if (!string.IsNullOrWhiteSpace(subClaim) && Guid.TryParse(subClaim, out var userId) && userId != Guid.Empty)
             return userId;
 
-        return Guid.Empty;
+        throw new UnauthorizedAccessException("Invalid or missing user identity in token.");
     }
 }

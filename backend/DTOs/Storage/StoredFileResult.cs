@@ -26,6 +26,9 @@ public class StoredFileResult
     /// <summary>Size of the stored file in bytes.</summary>
     public long FileSizeBytes { get; set; }
 
+    /// <summary>64-character lowercase SHA-256 cryptographic hash of the file binary content.</summary>
+    public string FileHash { get; set; } = string.Empty;
+
     /// <summary>UTC timestamp when the file was saved.</summary>
     public DateTime StoredAt { get; set; }
 }

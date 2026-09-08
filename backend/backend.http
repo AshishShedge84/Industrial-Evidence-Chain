@@ -1,0 +1,51 @@
+@backend_HostAddress = http://localhost:5212
+@authToken = your_jwt_token_here
+
+### 1. Health Check
+GET {{backend_HostAddress}}/health
+Accept: application/json
+
+### 2. Swagger Specification
+GET {{backend_HostAddress}}/swagger/v1/swagger.json
+Accept: application/json
+
+### 3. User Authentication — Login (Admin)
+# @name login
+POST {{backend_HostAddress}}/api/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin@iec.app",
+  "password": "password123"
+}
+
+### 4. User Authentication — Login (Technician)
+POST {{backend_HostAddress}}/api/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "tech@iec.app",
+  "password": "password123"
+}
+
+### 5. Assets — List Assets (Paginated)
+GET {{backend_HostAddress}}/api/assets?pageNumber=1&pageSize=10
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 6. Evidence — List Evidence (Paginated)
+GET {{backend_HostAddress}}/api/evidence?pageNumber=1&pageSize=10
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 7. Evidence — Get Evidence by ID
+GET {{backend_HostAddress}}/api/evidence/c73a8840-3b95-46b7-8798-1e43b1234567
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 8. Admin — List Users Pending Approval
+GET {{backend_HostAddress}}/api/admin/users/pending
+Authorization: Bearer {{authToken}}
+Accept: application/json

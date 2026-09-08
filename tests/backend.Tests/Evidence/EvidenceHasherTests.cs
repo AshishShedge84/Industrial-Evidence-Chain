@@ -22,25 +22,29 @@ public class EvidenceHasherTests
             UserId = "f47ac10b-58cc-4372-a567-0e02b2c3d479",
             ActivityType = "Inspection",
             Timestamp = "2026-09-05T12:00:00.000Z",
-            Latitude = "12.345678",
-            Longitude = "77.123456",
+            CreatedAt = "2026-09-05T12:05:00.000Z",
+            Location = new CanonicalLocationPayload
+            {
+                Latitude = "12.345678",
+                Longitude = "77.123456"
+            },
             Description = "Standard quarterly inspection",
-            MediaHashes = new List<string> { "hashB", "hashA" }
+            MediaReferences = new List<string> { "hashA", "hashB" }
         };
 
         var canonicalBytes = _hasher.Canonicalize(payload);
         var canonicalString = Encoding.UTF8.GetString(canonicalBytes);
 
-        // Verify lexicographical key ordering: activityType, assetId, description, evidenceId, latitude, longitude, mediaHashes, timestamp, userId
+        // Verify lexicographical key ordering: activityType, assetId, createdAt, description, evidenceId, location, mediaReferences, timestamp, userId
         var expectedOrder = new[]
         {
             "\"activityType\"",
             "\"assetId\"",
+            "\"createdAt\"",
             "\"description\"",
             "\"evidenceId\"",
-            "\"latitude\"",
-            "\"longitude\"",
-            "\"mediaHashes\"",
+            "\"location\"",
+            "\"mediaReferences\"",
             "\"timestamp\"",
             "\"userId\""
         };
@@ -53,8 +57,11 @@ public class EvidenceHasherTests
             lastIndex = currentIndex;
         }
 
-        // Verify media hashes are sorted deterministically
-        Assert.Contains("[\"hasha\",\"hashb\"]", canonicalString);
+        // Verify nested location keys
+        Assert.Contains("\"location\":{\"latitude\":\"12.345678\",\"longitude\":\"77.123456\"}", canonicalString);
+
+        // Verify media references preserve order
+        Assert.Contains("[\"hashA\",\"hashB\"]", canonicalString);
     }
 
     [Fact]
@@ -67,10 +74,14 @@ public class EvidenceHasherTests
             UserId = "f47ac10b-58cc-4372-a567-0e02b2c3d479",
             ActivityType = "Maintenance",
             Timestamp = "2026-09-05T12:00:00.000Z",
-            Latitude = "12.345678",
-            Longitude = "77.123456",
+            CreatedAt = "2026-09-05T12:05:00.000Z",
+            Location = new CanonicalLocationPayload
+            {
+                Latitude = "12.345678",
+                Longitude = "77.123456"
+            },
             Description = "Replaced pump valve",
-            MediaHashes = new List<string>()
+            MediaReferences = new List<string>()
         };
 
         var hash = _hasher.ComputeHash(payload);
@@ -90,6 +101,7 @@ public class EvidenceHasherTests
             UserId = Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
             ActivityType = ActivityType.Inspection,
             Timestamp = DateTime.Parse("2026-09-05T12:00:00.000Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
+            CreatedAt = DateTime.Parse("2026-09-05T12:05:00.000Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
             Latitude = 12.345678m,
             Longitude = 77.123456m,
             Description = "Quarterly safety inspection"
@@ -102,6 +114,7 @@ public class EvidenceHasherTests
             UserId = Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
             ActivityType = ActivityType.Inspection,
             Timestamp = DateTime.Parse("2026-09-05T12:00:00.000Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
+            CreatedAt = DateTime.Parse("2026-09-05T12:05:00.000Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
             Latitude = 12.345678m,
             Longitude = 77.123456m,
             Description = "Quarterly safety inspection"
@@ -123,6 +136,7 @@ public class EvidenceHasherTests
             UserId = Guid.Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
             ActivityType = ActivityType.Inspection,
             Timestamp = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
             Description = "Original description"
         };
 
@@ -133,6 +147,7 @@ public class EvidenceHasherTests
             UserId = record1.UserId,
             ActivityType = record1.ActivityType,
             Timestamp = record1.Timestamp,
+            CreatedAt = record1.CreatedAt,
             Description = "Tampered description" // modified
         };
 
@@ -152,6 +167,7 @@ public class EvidenceHasherTests
             UserId = Guid.NewGuid(),
             ActivityType = ActivityType.Safety,
             Timestamp = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
             Latitude = 12.345678000m,
             Longitude = 77.123456000m,
             Description = "Test"
@@ -164,6 +180,7 @@ public class EvidenceHasherTests
             UserId = record1.UserId,
             ActivityType = record1.ActivityType,
             Timestamp = record1.Timestamp,
+            CreatedAt = record1.CreatedAt,
             Latitude = 12.345678m,
             Longitude = 77.123456m,
             Description = "Test"

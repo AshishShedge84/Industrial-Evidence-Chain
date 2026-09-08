@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using backend.Data;
 using backend.DTOs.Blockchain;
@@ -133,7 +134,8 @@ public class EvidenceService : IEvidenceService
             return null;
 
         var mediaHashes = evidence.MediaFiles
-            .Select(m => m.StorageUrl)
+            .Where(m => !string.IsNullOrWhiteSpace(m.FileHash))
+            .Select(m => m.FileHash!)
             .ToList();
 
         return MapToDto(evidence, mediaHashes);
@@ -197,7 +199,10 @@ public class EvidenceService : IEvidenceService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = items.Select(e => MapToDto(e, e.MediaFiles.Select(m => m.StorageUrl).ToList())).ToList();
+        var dtos = items.Select(e => MapToDto(e, e.MediaFiles
+            .Where(m => !string.IsNullOrWhiteSpace(m.FileHash))
+            .Select(m => m.FileHash!)
+            .ToList())).ToList();
 
         return new PagedResult<EvidenceDto>
         {
@@ -279,7 +284,7 @@ public class EvidenceService : IEvidenceService
             contentType: storedResult.ContentType,
             storageUrl: storedResult.StorageUrl,
             fileSizeBytes: storedResult.FileSizeBytes,
-            fileHash: null,
+            fileHash: storedResult.FileHash,
             userId: userId,
             cancellationToken: cancellationToken);
     }
@@ -317,6 +322,7 @@ public class EvidenceService : IEvidenceService
             FileType = fileType,
             StorageUrl = storageUrl,
             FileSizeBytes = fileSizeBytes,
+            FileHash = fileHash,
             UploadedAt = DateTime.UtcNow
         };
 
@@ -349,7 +355,7 @@ public class EvidenceService : IEvidenceService
             StorageProvider = "Local",
             StorageUrl = media.StorageUrl,
             FileSizeBytes = media.FileSizeBytes,
-            FileHash = fileHash,
+            FileHash = media.FileHash,
             UploadedAt = media.UploadedAt
         };
     }
@@ -373,7 +379,7 @@ public class EvidenceService : IEvidenceService
             StorageProvider = "Local",
             StorageUrl = m.StorageUrl,
             FileSizeBytes = m.FileSizeBytes,
-            FileHash = null,
+            FileHash = m.FileHash,
             UploadedAt = m.UploadedAt
         }).ToList();
     }
@@ -396,14 +402,31 @@ public class EvidenceService : IEvidenceService
         // Idempotency: If already anchored, return existing representation
         if (evidence.AnchorStatus == AnchorStatus.Anchored && evidence.BlockchainProof != null)
         {
-            var existingMediaHashes = evidence.MediaFiles.Select(m => m.StorageUrl).ToList();
+            var existingMediaHashes = evidence.MediaFiles
+                .Where(m => !string.IsNullOrWhiteSpace(m.FileHash))
+                .Select(m => m.FileHash!)
+                .ToList();
             return MapToDto(evidence, existingMediaHashes);
         }
 
-        // 1. Gather media hashes or references
-        var mediaHashes = evidence.MediaFiles
-            .Select(m => m.StorageUrl)
-            .ToList();
+        // 1. Gather media hashes from actual binary content (m.FileHash)
+        var mediaHashes = new List<string>();
+        foreach (var media in evidence.MediaFiles)
+        {
+            var hash = media.FileHash;
+            if (string.IsNullOrWhiteSpace(hash))
+            {
+                // If FileHash was not stored previously, compute live from physical storage
+                var storageKey = media.StorageUrl.StartsWith("/uploads/")
+                    ? media.StorageUrl["/uploads/".Length..]
+                    : media.StorageUrl.TrimStart('/');
+                using var stream = await _storageService.GetFileStreamAsync(storageKey, cancellationToken);
+                var hashBytes = await SHA256.HashDataAsync(stream, cancellationToken);
+                hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+                media.FileHash = hash;
+            }
+            mediaHashes.Add(hash);
+        }
 
         // 2. Compute canonical SHA-256 hash using IEvidenceHasher
         var calculatedHash = _hasher.ComputeHash(evidence, mediaHashes);
@@ -495,8 +518,50 @@ public class EvidenceService : IEvidenceService
             throw new NotFoundException($"Evidence with ID '{evidenceId}' was not found.");
         }
 
-        var mediaHashes = evidence.MediaFiles.Select(m => m.StorageUrl).ToList();
-        var calculatedHash = _hasher.ComputeHash(evidence, mediaHashes);
+        // 1. Re-read physical files from disk and recompute SHA-256 live
+        var liveMediaHashes = new List<string>();
+        bool physicalFileTampered = false;
+
+        foreach (var media in evidence.MediaFiles)
+        {
+            string liveHash;
+            try
+            {
+                var storageKey = media.StorageUrl.StartsWith("/uploads/")
+                    ? media.StorageUrl["/uploads/".Length..]
+                    : media.StorageUrl.TrimStart('/');
+                using var stream = await _storageService.GetFileStreamAsync(storageKey, cancellationToken);
+                var hashBytes = await SHA256.HashDataAsync(stream, cancellationToken);
+                liveHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            }
+            catch (Exception ex)
+            {
+                // Physical file missing or unreadable on disk
+                return new EvidenceVerificationResponseDto
+                {
+                    EvidenceId = evidenceId,
+                    CalculatedHash = string.Empty,
+                    TrustedHash = evidence.BlockchainProof?.EvidenceHash ?? evidence.EvidenceHash,
+                    IsValid = false,
+                    Status = "FAILED",
+                    TransactionId = evidence.BlockchainProof?.TransactionId,
+                    AnchoredAt = evidence.BlockchainProof?.AnchoredAt,
+                    Error = $"Physical media file '{media.FileName}' could not be read from storage: {ex.Message}"
+                };
+            }
+
+            // Compare freshly computed live hash against stored FileHash
+            if (!string.IsNullOrWhiteSpace(media.FileHash) &&
+                !string.Equals(liveHash, media.FileHash, StringComparison.OrdinalIgnoreCase))
+            {
+                physicalFileTampered = true;
+            }
+
+            liveMediaHashes.Add(liveHash);
+        }
+
+        // 2. Recompute canonical evidence hash using freshly computed live media hashes
+        var calculatedHash = _hasher.ComputeHash(evidence, liveMediaHashes);
 
         if (evidence.AnchorStatus != AnchorStatus.Anchored || evidence.BlockchainProof == null)
         {
@@ -510,6 +575,22 @@ public class EvidenceService : IEvidenceService
                 TransactionId = null,
                 AnchoredAt = null,
                 Error = "Evidence has not been anchored on the blockchain ledger yet."
+            };
+        }
+
+        // If physical file tampering was detected on disk, report INTEGRITY_MISMATCH
+        if (physicalFileTampered)
+        {
+            return new EvidenceVerificationResponseDto
+            {
+                EvidenceId = evidenceId,
+                CalculatedHash = calculatedHash,
+                TrustedHash = evidence.BlockchainProof.EvidenceHash,
+                IsValid = false,
+                Status = "INTEGRITY_MISMATCH",
+                TransactionId = evidence.BlockchainProof.TransactionId,
+                AnchoredAt = evidence.BlockchainProof.AnchoredAt,
+                Error = "INTEGRITY ALERT: Physical media file on disk has been modified or tampered with since anchoring."
             };
         }
 

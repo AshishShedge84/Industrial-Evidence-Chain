@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using backend.DTOs.Storage;
 using backend.Exceptions;
 using backend.Models.Enums;
@@ -74,17 +75,27 @@ public class LocalFileStorageService : IFileStorageService
         EnsurePathInsideBaseDirectory(fullPhysicalPath);
 
         long bytesWritten = 0;
+        string fileHash;
+
         using (var destinationStream = new FileStream(fullPhysicalPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+        using (var sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
         {
-            await content.CopyToAsync(destinationStream, cancellationToken);
-            bytesWritten = destinationStream.Length;
+            var buffer = new byte[81920];
+            int bytesRead;
+            while ((bytesRead = await content.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+            {
+                await destinationStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                sha256.AppendData(buffer, 0, bytesRead);
+                bytesWritten += bytesRead;
+            }
+            fileHash = Convert.ToHexString(sha256.GetHashAndReset()).ToLowerInvariant();
         }
 
         var storageKey = $"{subFolder}/{storageFileName}";
         var storageUrl = $"/uploads/{storageKey}";
         var fileType = InferMediaFileType(extension, contentType);
 
-        _logger.LogInformation("File stored successfully. StorageKey: {StorageKey}, Size: {Size} bytes", storageKey, bytesWritten);
+        _logger.LogInformation("File stored successfully. StorageKey: {StorageKey}, Size: {Size} bytes, SHA256: {FileHash}", storageKey, bytesWritten, fileHash);
 
         return new StoredFileResult
         {
@@ -94,6 +105,7 @@ public class LocalFileStorageService : IFileStorageService
             ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType.Trim(),
             FileType = fileType,
             FileSizeBytes = bytesWritten,
+            FileHash = fileHash,
             StoredAt = DateTime.UtcNow
         };
     }
