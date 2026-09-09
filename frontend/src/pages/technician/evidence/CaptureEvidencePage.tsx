@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageContainer } from '@components/layout';
 import { EvidenceCaptureFlow } from '@components/evidence';
-import { Badge } from '@components/ui';
-import { Button } from '@components/ui';
+import { Badge, Button, useToast } from '@components/ui';
 import { ArrowLeft, QrCode, Box, MapPin } from 'lucide-react';
 import { useAuth } from '@hooks/useAuth';
 import { evidenceService } from '@services/evidence/evidenceService';
+import { QRScanner } from '@components/qr/QRScanner';
 import type { Asset } from '@type-defs/asset';
 import type { EvidenceLocation } from '@type-defs/evidence';
 import type { AssetSearchParams } from '@components/assets/AssetSearch';
@@ -27,6 +27,14 @@ export function CaptureEvidencePage() {
   const [showAssetSelector, setShowAssetSelector] = useState(true);
   const [assetSearchQuery, setAssetSearchQuery] = useState('');
   const [isSearchingAsset, setIsSearchingAsset] = useState(false);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const toast = useToast();
+
+  const handleQRScan = async (result: string) => {
+    setIsQRScannerOpen(false);
+    setAssetSearchQuery(result);
+    await handleVerifyAsset(result);
+  };
 
   const handleSelectAsset = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -38,20 +46,56 @@ export function CaptureEvidencePage() {
     setShowAssetSelector(true);
   };
 
-  const handleVerifyAsset = async () => {
-    if (!assetSearchQuery.trim()) return;
+  const handleVerifyAsset = async (overrideQuery?: any) => {
+    // If it's called from an event handler, overrideQuery will be an Event. Let's handle it safely.
+    let queryToSearch = typeof overrideQuery === 'string' ? overrideQuery : assetSearchQuery;
+    queryToSearch = queryToSearch?.trim() || '';
+    
+    if (!queryToSearch) {
+      toast.error('Error', 'Please enter an Asset ID or Tag');
+      return;
+    }
+    
     setIsSearchingAsset(true);
     try {
-      // Find asset by tag/query
-      const res = await assetService.getAssets({ query: assetSearchQuery.trim() });
-      if (res.success && res.data && res.data.items.length > 0) {
-        handleSelectAsset(res.data.items[0]);
-      } else {
-        alert('Asset not found. Please try another tag.');
+      // 1. Try fetching by exact GUID if input matches UUID format
+      const isGuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(queryToSearch);
+      
+      if (isGuid) {
+        try {
+          const idRes = await assetService.getAsset(queryToSearch);
+          if (idRes.success && idRes.data) {
+            handleSelectAsset(idRes.data);
+            toast.success('Success', 'Asset resolved successfully');
+            return;
+          }
+        } catch (idErr: any) {
+          if (idErr.status === 404) {
+            toast.error('Error', 'Asset not found');
+            return;
+          }
+          throw idErr; // Pass 401/403/other errors down to generic catch block
+        }
       }
-    } catch (err) {
+
+      // 2. Search by Tag/Name using the search endpoint
+      const res = await assetService.getAssets({ query: queryToSearch });
+      if (res.success && res.data && res.data.items.length > 0) {
+        const exactMatch = res.data.items.find(a => a.assetTag.toLowerCase() === queryToSearch.toLowerCase());
+        handleSelectAsset(exactMatch || res.data.items[0]);
+        toast.success('Success', 'Asset resolved successfully');
+      } else {
+        toast.error('Error', 'Asset not found');
+      }
+    } catch (err: any) {
       console.error('Failed to find asset', err);
-      alert('Error searching for asset.');
+      if (err.status === 401 || err.response?.status === 401) {
+        toast.error('Authentication Error', 'Please log in again to verify assets.');
+      } else if (err.status === 403 || err.response?.status === 403) {
+        toast.error('Permission Error', 'You do not have permission to access this asset.');
+      } else {
+        toast.error('Connection Error', 'Failed to connect to the server.');
+      }
     } finally {
       setIsSearchingAsset(false);
     }
@@ -93,9 +137,9 @@ export function CaptureEvidencePage() {
 
       // 4. Navigate to success
       navigate(`/evidence/${evidenceId}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Evidence upload failed', err);
-      alert('Failed to upload evidence. Please try again.');
+      toast.error('Error', err.message || 'Failed to upload evidence. Please try again.');
     }
   };
 
@@ -118,14 +162,17 @@ export function CaptureEvidencePage() {
               <Button 
                 size="lg" 
                 className="w-full sm:w-auto min-w-[200px]"
-                onClick={() => {
-                  // Use a default real asset search or prompt the user.
-                  alert("Please enter the Asset Tag manually to fetch a real asset.");
-                }}
+                onClick={() => setIsQRScannerOpen(true)}
               >
                 <QrCode className="h-5 w-5 mr-2" />
                 Open Camera
               </Button>
+              
+              <QRScanner 
+                isOpen={isQRScannerOpen}
+                onClose={() => setIsQRScannerOpen(false)}
+                onScan={handleQRScan}
+              />
               
               <div className="mt-10 pt-8 border-t border-gray-100 dark:border-gray-800">
                 <p className="text-sm text-gray-500 font-medium mb-4">Or enter Asset ID manually</p>
