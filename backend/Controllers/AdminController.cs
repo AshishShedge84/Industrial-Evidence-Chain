@@ -76,5 +76,22 @@ public class AdminController : ControllerBase
 
         return Ok(ApiResponse<UserDto>.SuccessResult(result, reqId));
     }
+
+    /// <summary>
+    /// Retrieves system-wide audit logs with actor details (Admin-only).
+    /// </summary>
+    /// <response code="200">Returns list of system audit logs.</response>
+    /// <response code="401">Unauthorized: Missing or invalid token.</response>
+    /// <response code="403">Forbidden: Caller is not an Administrator.</response>
+    [HttpGet("audit")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<AdminAuditLogDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAuditLogs([FromQuery] int limit = 100)
+    {
+        var logs = await _adminService.GetAuditLogsAsync(limit);
+        var reqId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        return Ok(ApiResponse<IEnumerable<AdminAuditLogDto>>.SuccessResult(logs, reqId));
+    }
 }
 

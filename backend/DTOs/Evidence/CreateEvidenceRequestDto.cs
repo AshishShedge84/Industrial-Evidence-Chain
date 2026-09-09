@@ -23,7 +23,17 @@ public class CreateEvidenceRequestDto
     [Range(-180.0, 180.0, ErrorMessage = "Longitude must be between -180 and 180 degrees.")]
     public decimal? Longitude { get; set; }
 
+    public LocationPayloadDto? Location { get; set; }
+
     [Required(ErrorMessage = "Description is required.")]
     [StringLength(4000, ErrorMessage = "Description cannot exceed 4000 characters.")]
     public string Description { get; set; } = string.Empty;
+}
+
+public class LocationPayloadDto
+{
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public decimal? Accuracy { get; set; }
+    public string? Address { get; set; }
 }

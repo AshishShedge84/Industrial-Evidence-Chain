@@ -38,9 +38,13 @@ class EvidenceServiceImpl implements EvidenceService {
     files: File[],
     onProgress?: (progress: number) => void
   ): Promise<ApiResponse<Evidence>> {
-    const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
-    return apiClient.upload<Evidence>(`/evidence/${evidenceId}/upload`, formData, onProgress);
+    let lastRes: any = null;
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      lastRes = await apiClient.upload<Evidence>(`/evidence/${evidenceId}/media`, formData, onProgress);
+    }
+    return lastRes;
   }
 
   async submitEvidence(evidenceId: string): Promise<ApiResponse<Evidence>> {

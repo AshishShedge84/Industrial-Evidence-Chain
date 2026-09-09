@@ -8,6 +8,7 @@ export interface AdminService {
   updateUserStatus(userId: string, status: UserStatus): Promise<ApiResponse<User>>;
   updateUser(userId: string, data: Partial<User>): Promise<ApiResponse<User>>;
   addUser(data: Partial<User>): Promise<ApiResponse<User>>;
+  getAuditLogs(limit?: number): Promise<ApiResponse<any[]>>;
 }
 
 class AdminServiceImpl implements AdminService {
@@ -25,6 +26,10 @@ class AdminServiceImpl implements AdminService {
 
   async addUser(data: Partial<User>): Promise<ApiResponse<User>> {
     return apiClient.post<User>('/admin/users', data);
+  }
+
+  async getAuditLogs(limit: number = 100): Promise<ApiResponse<any[]>> {
+    return apiClient.get<any[]>(`/admin/audit?limit=${limit}`);
   }
 }
 

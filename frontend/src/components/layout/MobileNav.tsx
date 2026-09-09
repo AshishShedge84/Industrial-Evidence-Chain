@@ -5,16 +5,16 @@ import { useAuth } from '@hooks/useAuth';
 import { ROUTES } from '@constants/routes';
 
 const navigation = [
-  { name: 'Dashboard', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-  { name: 'Assets', href: ROUTES.ASSETS, icon: Box },
-  { name: 'Capture Evidence', href: ROUTES.EVIDENCE_CAPTURE, icon: Camera },
-  { name: 'Verification', href: ROUTES.VERIFICATION, icon: Shield },
-  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText },
+  { name: 'Dashboard', href: ROUTES.DASHBOARD, icon: LayoutDashboard, permission: 'assets:read' },
+  { name: 'Assets', href: ROUTES.ASSETS, icon: Box, permission: 'assets:read' },
+  { name: 'Capture Evidence', href: ROUTES.EVIDENCE_CAPTURE, icon: Camera, permission: 'evidence:create' },
+  { name: 'Verification', href: ROUTES.VERIFICATION, icon: Shield, permission: 'evidence:verify' },
 ] as const;
 
 const adminNavigation = [
-  { name: 'Users', href: '/admin/users', icon: Users },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Users', href: '/admin/users', icon: Users, permission: 'users:read' },
+  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText, permission: 'users:read' },
+  { name: 'Settings', href: '/settings', icon: Settings, permission: 'system:configure' },
 ] as const;
 
 interface MobileNavProps {
@@ -26,8 +26,8 @@ export function MobileNav({ onClose }: MobileNavProps) {
   const { mobileMenuOpen } = useApp();
   const location = useLocation();
 
-  const filteredNavigation = navigation.filter((item) => hasPermission('assets:read'));
-  const filteredAdminNav = adminNavigation.filter((item) => hasPermission('users:read'));
+  const filteredNavigation = navigation.filter((item) => hasPermission(item.permission));
+  const filteredAdminNav = adminNavigation.filter((item) => hasPermission(item.permission));
 
   return (
     <aside

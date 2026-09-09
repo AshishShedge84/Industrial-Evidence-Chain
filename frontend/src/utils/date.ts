@@ -10,7 +10,7 @@ export function formatDate(dateString: string, options?: Intl.DateTimeFormatOpti
     minute: '2-digit',
   };
 
-  return date.toLocaleDateString(undefined, options ?? defaultOptions);
+  return date.toLocaleString(undefined, options ?? defaultOptions);
 }
 
 export function formatRelativeTime(dateString: string): string {

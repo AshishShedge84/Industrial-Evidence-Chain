@@ -156,6 +156,7 @@ public class EvidenceController : ControllerBase
     /// <response code="404">Evidence not found.</response>
     /// <response code="409">Evidence is already anchored/immutable.</response>
     [HttpPost("api/evidence/{id:guid}/media")]
+    [HttpPost("api/evidence/{id:guid}/upload")]
     [Authorize(Policy = "RequireEvidenceCreator")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<EvidenceMediaDto>), StatusCodes.Status201Created)]

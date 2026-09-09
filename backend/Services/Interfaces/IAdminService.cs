@@ -11,4 +11,7 @@ public interface IAdminService
 
     /// <summary>Updates the active/pending status of a specific user (approval or deactivation).</summary>
     Task<UserDto?> UpdateUserStatusAsync(Guid userId, UpdateUserStatusDto dto);
+
+    /// <summary>Retrieves system-wide audit logs with actor and entity information.</summary>
+    Task<IEnumerable<AdminAuditLogDto>> GetAuditLogsAsync(int limit = 100);
 }

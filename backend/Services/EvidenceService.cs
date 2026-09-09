@@ -66,13 +66,16 @@ public class EvidenceService : IEvidenceService
             throw new ValidationException($"User with ID '{userId}' does not exist.");
         }
 
+        var lat = request.Latitude ?? request.Location?.Latitude;
+        var lng = request.Longitude ?? request.Location?.Longitude;
+
         // 3. Validate coordinates range
-        if (request.Latitude.HasValue && (request.Latitude < -90m || request.Latitude > 90m))
+        if (lat.HasValue && (lat < -90m || lat > 90m))
         {
             throw new ValidationException("Latitude must be between -90 and 90 degrees.");
         }
 
-        if (request.Longitude.HasValue && (request.Longitude < -180m || request.Longitude > 180m))
+        if (lng.HasValue && (lng < -180m || lng > 180m))
         {
             throw new ValidationException("Longitude must be between -180 and 180 degrees.");
         }
@@ -91,8 +94,8 @@ public class EvidenceService : IEvidenceService
             UserId = userId,
             ActivityType = request.ActivityType,
             Timestamp = request.Timestamp.ToUniversalTime(),
-            Latitude = request.Latitude,
-            Longitude = request.Longitude,
+            Latitude = lat,
+            Longitude = lng,
             Description = request.Description.Trim(),
             EvidenceHash = null,
             AnchorStatus = AnchorStatus.Pending,

@@ -67,4 +67,28 @@ public class AdminService : IAdminService
             UpdatedAt = user.UpdatedAt
         };
     }
+
+    public async Task<IEnumerable<AdminAuditLogDto>> GetAuditLogsAsync(int limit = 100)
+    {
+        var logs = await _db.AuditLogs
+            .AsNoTracking()
+            .Include(a => a.User)
+            .OrderByDescending(a => a.CreatedAt)
+            .Take(limit)
+            .ToListAsync();
+
+        return logs.Select(a => new AdminAuditLogDto
+        {
+            Id = a.AuditLogId,
+            Action = a.Action,
+            EntityType = a.EntityType,
+            EntityId = a.EntityId,
+            PerformedBy = a.User?.FullName ?? a.User?.Username ?? "System",
+            UserId = a.UserId,
+            PerformedAt = a.CreatedAt,
+            Details = a.Details,
+            IpAddress = a.IpAddress
+        });
+    }
 }
+

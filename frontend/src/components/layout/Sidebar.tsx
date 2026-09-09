@@ -20,11 +20,11 @@ const navigation = [
   { name: 'Assets', href: ROUTES.ASSETS, icon: Box, permission: 'assets:read' },
   { name: 'Capture Evidence', href: ROUTES.EVIDENCE_CAPTURE, icon: Camera, permission: 'evidence:create' },
   { name: 'Verification', href: ROUTES.VERIFICATION, icon: Shield, permission: 'evidence:verify' },
-  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText, permission: 'audit:read' },
 ] as const;
 
 const adminNavigation = [
   { name: 'Users', href: '/admin/users', icon: Users, permission: 'users:read' },
+  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText, permission: 'users:read' },
   { name: 'Settings', href: '/settings', icon: Settings, permission: 'system:configure' },
 ] as const;
 

@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageContainer } from '@components/layout';
-import { Badge, Button } from '@components/ui';
-import { ChevronRight, FileText, Shield, Download, Filter, Search, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react';
+import { Button } from '@components/ui';
+import { ChevronRight, FileText, Shield, Download, Filter, Search, AlertTriangle, CheckCircle, XCircle, X, Loader2 } from 'lucide-react';
+import { adminService } from '@services/admin/adminService';
 
 import type { AuditTrailEntry } from '@type-defs/verification';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,7 +32,8 @@ const actionIcons: Record<string, React.ComponentType<{ className?: string }>> =
 };
 
 export function AuditDashboardPage() {
-  const [logs] = useState<AuditTrailEntry[]>(() => []);
+  const [logs, setLogs] = useState<AuditTrailEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Filter state
@@ -42,6 +44,34 @@ export function AuditDashboardPage() {
   
   // Detail Modal state
   const [selectedLog, setSelectedLog] = useState<AuditTrailEntry | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLogs = async () => {
+      setIsLoading(true);
+      try {
+        const res = await adminService.getAuditLogs(100);
+        if (isMounted && res.success && res.data) {
+          const mapped: AuditTrailEntry[] = res.data.map((l: any) => ({
+            id: l.id,
+            action: l.action,
+            evidenceId: l.entityType === 'EvidenceRecord' ? l.entityId : (l.entityType ? `${l.entityType}: ${l.entityId}` : 'N/A'),
+            performedBy: l.performedBy || 'System',
+            performedAt: l.performedAt,
+            details: l.details ? (typeof l.details === 'string' ? { info: l.details } : l.details) : {},
+            ipAddress: l.ipAddress
+          }));
+          setLogs(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load audit logs', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    fetchLogs();
+    return () => { isMounted = false; };
+  }, []);
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
@@ -196,7 +226,23 @@ export function AuditDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100/80">
-                {filteredLogs.map((entry) => {
+                {isLoading && (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-gray-500">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary-600 mx-auto mb-3" />
+                      <p className="text-sm font-medium">Loading system audit records...</p>
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && filteredLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-gray-500">
+                      <FileText className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                      <p className="text-sm font-medium">No audit records found</p>
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && filteredLogs.map((entry) => {
                   const Icon = actionIcons[entry.action] || FileText;
                   const detailString = entry.details ? Object.entries(entry.details).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
                   const severity = (entry as any).severity || 'info';
