@@ -1,5 +1,5 @@
 import type { User, UserRole, AvatarType } from '@type-defs/auth';
-import { db } from '@mocks/db';
+
 
 export type RoleMemojiExpressionKey =
   | 'Hello'
@@ -218,7 +218,7 @@ export function getSenderAvatar(senderId?: string, senderName?: string): Resolve
     }
 
     if (senderId) {
-      const users = db.getUsers();
+      const users: User[] = [];
       const found = users.find((u) => u.id === senderId);
       if (found) {
         return getUserAvatar(found);
@@ -226,7 +226,7 @@ export function getSenderAvatar(senderId?: string, senderName?: string): Resolve
     }
 
     if (senderName) {
-      const users = db.getUsers();
+      const users: User[] = [];
       const lower = senderName.toLowerCase();
       const found = users.find(
         (u) =>

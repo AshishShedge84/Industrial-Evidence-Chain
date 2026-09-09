@@ -1,0 +1,33 @@
+{
+  "name": "industrial-evidence-chain-blockchain",
+  "version": "1.0.0",
+  "description": "Hyperledger Fabric Blockchain, Cryptography, and Evidence Integrity Module for Industrial Evidence Chain",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ../scripts/check-port.mjs 5050 BlockchainAdapter && node --import tsx src/server.ts",
+    "test": "node --test --test-reporter spec dist/test/**/*.test.js",
+    "test:ts": "node --import tsx --test --test-reporter spec test/**/*.test.ts",
+    "demo:tamper": "node --import tsx scripts/tamper-demonstration.ts",
+    "demo:hash": "node --import tsx scripts/hashing-demo.ts",
+    "experiment:hashing": "node --import tsx experiments/hashing-benchmark.ts",
+    "experiment:all": "node --import tsx experiments/run-all-benchmarks.ts"
+  },
+  "keywords": [
+    "hyperledger-fabric",
+    "blockchain",
+    "cryptography",
+    "sha256",
+    "evidence-integrity",
+    "industrial-evidence-chain"
+  ],
+  "author": "Member 2 — Blockchain & Evidence Integrity Developer",
+  "license": "UNLICENSED",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

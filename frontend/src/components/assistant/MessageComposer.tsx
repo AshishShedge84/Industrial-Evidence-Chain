@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { db } from '@mocks/db';
+import type { User } from '@type-defs/auth';
 import { useAuth } from '@hooks/useAuth';
 import { useAssistant } from '@hooks/useAssistant';
 import { Button } from '@components/ui';
@@ -15,7 +15,7 @@ interface MessageComposerProps {
 export function MessageComposer({ initialRecipientId, initialMessage, onComplete }: MessageComposerProps) {
   const { user: currentUser } = useAuth();
   const { addMessage } = useAssistant();
-  const users = useMemo(() => db.getUsers().filter(u => u.id !== currentUser?.id), [currentUser?.id]);
+  const users = useMemo(() => [] as User[], [currentUser?.id]);
   
   const [recipientId, setRecipientId] = useState<string>(initialRecipientId || '');
   const [message, setMessage] = useState(initialMessage || '');

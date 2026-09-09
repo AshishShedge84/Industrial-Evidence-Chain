@@ -1,4 +1,4 @@
-import { db } from '@mocks/db';
+import type { User } from '@type-defs/auth';
 import type { ChatMessage, AssistantContext, ChatAction, AssistantEmotion } from '@type-defs/assistant';
 import { notificationService } from '../notification/notificationService';
 
@@ -80,7 +80,7 @@ export const assistantService = {
 
     if (isMessageIntent && !isQueryAboutMessages) {
       
-      const users = db.getUsers();
+      const users: User[] = [];
       const targetUser = users.find(u => text.includes(u.firstName.toLowerCase()) || text.includes(u.lastName.toLowerCase()));
       
       if (targetUser && context.role === 'Technician' && targetUser.role === 'Admin') {
@@ -135,11 +135,11 @@ export const assistantService = {
 
     // 4. INTENT: VERIFICATION LOOKUP
     if ((text.includes('verified') || text.includes('verification')) && targetEntity && targetEntity.startsWith('EV-')) {
-      const ev = db.getEvidence().find(e => e.evidenceId === targetEntity);
+      const ev = null as any;
       if (!ev) {
         return { text: `I couldn't find evidence record ${targetEntity} in the available verification records.`, emotion: 'error' };
       }
-      const vResult = db.getVerificationResults().find(v => v.evidenceId === targetEntity);
+      const vResult = null as any;
       if (vResult) {
         if (vResult.isValid) {
           return {
@@ -173,7 +173,7 @@ export const assistantService = {
 
     // 5. INTENT: PENDING/STATUS REASON
     if (text.includes('why') && (text.includes('pending') || text.includes('status')) && targetEntity && targetEntity.startsWith('EV-')) {
-      const ev = db.getEvidence().find(e => e.evidenceId === targetEntity);
+      const ev = null as any;
       if (ev?.status === 'Submitted') {
         return {
           text: `That evidence is currently Submitted (Pending Anchor). The capture and submission steps are complete, but the blockchain anchor hasn't been completed yet.`,
@@ -188,7 +188,7 @@ export const assistantService = {
 
     // 6. INTENT: DATE/WHEN CONTEXT
     if ((text.includes('when') || text.includes('kab')) && targetEntity && targetEntity.startsWith('EV-')) {
-      const vResult = db.getVerificationResults().find(v => v.evidenceId === targetEntity);
+      const vResult = null as any;
       if (vResult) {
         const date = new Date(vResult.verifiedAt).toLocaleString();
         return {
@@ -201,7 +201,7 @@ export const assistantService = {
 
     // 7. INTENT: ASSET LOOKUP
     if (targetEntity && !targetEntity.startsWith('EV-')) {
-      const asset = db.getAssets().find(a => a.id === targetEntity);
+      const asset = null as any;
       if (asset) {
         return {
           text: `Asset ${targetEntity} is ${asset.status.toLowerCase()}.`,
@@ -225,7 +225,7 @@ export const assistantService = {
           emotion: 'error'
         };
       }
-      const pending = db.getUsers().filter(u => u.status === 'pending');
+      const pending: User[] = [];
       return {
         text: `There are ${pending.length} users pending approval.`,
         actions: [{ label: 'Show pending users', action: 'NAVIGATE', payload: '/admin/users' }],

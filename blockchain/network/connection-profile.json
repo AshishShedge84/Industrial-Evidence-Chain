@@ -1,0 +1,51 @@
+{
+  "name": "industrial-evidence-chain-network",
+  "version": "1.0.0",
+  "client": {
+    "organization": "Org1MSP",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "evidencechannel": {
+      "orderers": ["orderer.industrialchain.internal"],
+      "peers": {
+        "peer0.org1.industrialchain.internal": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    }
+  },
+  "organizations": {
+    "Org1MSP": {
+      "mspid": "Org1MSP",
+      "peers": ["peer0.org1.industrialchain.internal"],
+      "certificateAuthorities": ["ca.org1.industrialchain.internal"]
+    }
+  },
+  "orderers": {
+    "orderer.industrialchain.internal": {
+      "url": "grpc://localhost:7050"
+    }
+  },
+  "peers": {
+    "peer0.org1.industrialchain.internal": {
+      "url": "grpc://localhost:7051"
+    }
+  },
+  "certificateAuthorities": {
+    "ca.org1.industrialchain.internal": {
+      "url": "http://localhost:7054",
+      "caName": "ca-org1"
+    }
+  }
+}

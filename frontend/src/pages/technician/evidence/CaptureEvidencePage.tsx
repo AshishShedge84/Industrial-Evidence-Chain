@@ -11,6 +11,8 @@ import type { Asset } from '@type-defs/asset';
 import type { EvidenceLocation } from '@type-defs/evidence';
 import type { AssetSearchParams } from '@components/assets/AssetSearch';
 
+import { assetService } from '@services/assets/assetService';
+
 interface CaptureEvidenceData {
   activityType: string;
   description: string;
@@ -18,23 +20,13 @@ interface CaptureEvidenceData {
   mediaFiles: File[];
 }
 
-const mockAssets: Asset[] = [
-  { id: 'asset-001', assetTag: 'PUMP-001', name: 'Centrifugal Pump - Main Line', category: 'Machinery', status: 'Active', location: { site: 'Building A' }, createdAt: '', updatedAt: '', createdBy: '' },
-  { id: 'asset-002', assetTag: 'COMP-002', name: 'Air Compressor - Workshop', category: 'Equipment', status: 'Active', location: { site: 'Building B' }, createdAt: '', updatedAt: '', createdBy: '' },
-  { id: 'asset-003', assetTag: 'GEN-003', name: 'Emergency Generator', category: 'Equipment', status: 'Maintenance', location: { site: 'Building A' }, createdAt: '', updatedAt: '', createdBy: '' },
-  { id: 'asset-004', assetTag: 'HVAC-004', name: 'Chiller Unit - Building C', category: 'Machinery', status: 'Active', location: { site: 'Building C' }, createdAt: '', updatedAt: '', createdBy: '' },
-];
-
 export function CaptureEvidencePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [showAssetSelector, setShowAssetSelector] = useState(true);
-  const [searchParams, setSearchParams] = useState<AssetSearchParams>({ query: '', category: undefined, status: undefined });
-
-  const handleAssetSearch = (params: any) => {
-    setSearchParams(params);
-  };
+  const [assetSearchQuery, setAssetSearchQuery] = useState('');
+  const [isSearchingAsset, setIsSearchingAsset] = useState(false);
 
   const handleSelectAsset = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -44,6 +36,25 @@ export function CaptureEvidencePage() {
   const handleBackToAssetSelection = () => {
     setSelectedAsset(null);
     setShowAssetSelector(true);
+  };
+
+  const handleVerifyAsset = async () => {
+    if (!assetSearchQuery.trim()) return;
+    setIsSearchingAsset(true);
+    try {
+      // Find asset by tag/query
+      const res = await assetService.getAssets({ query: assetSearchQuery.trim() });
+      if (res.success && res.data && res.data.items.length > 0) {
+        handleSelectAsset(res.data.items[0]);
+      } else {
+        alert('Asset not found. Please try another tag.');
+      }
+    } catch (err) {
+      console.error('Failed to find asset', err);
+      alert('Error searching for asset.');
+    } finally {
+      setIsSearchingAsset(false);
+    }
   };
 
   const handleCaptureComplete = async (evidenceData: CaptureEvidenceData) => {
@@ -73,7 +84,14 @@ export function CaptureEvidencePage() {
         throw new Error(uploadRes.error?.message || 'Failed to upload media');
       }
 
-      // 3. Navigate to success
+      // 3. Submit Evidence (Anchor to Blockchain)
+      const submitRes = await evidenceService.submitEvidence(evidenceId);
+      
+      if (!submitRes.success) {
+        throw new Error(submitRes.error?.message || 'Failed to submit/anchor evidence');
+      }
+
+      // 4. Navigate to success
       navigate(`/evidence/${evidenceId}`);
     } catch (err) {
       console.error('Evidence upload failed', err);
@@ -101,10 +119,8 @@ export function CaptureEvidencePage() {
                 size="lg" 
                 className="w-full sm:w-auto min-w-[200px]"
                 onClick={() => {
-                  // Mock scan: immediately select the first asset
-                  if (mockAssets.length > 0) {
-                    handleSelectAsset(mockAssets[0]);
-                  }
+                  // Use a default real asset search or prompt the user.
+                  alert("Please enter the Asset Tag manually to fetch a real asset.");
                 }}
               >
                 <QrCode className="h-5 w-5 mr-2" />
@@ -117,14 +133,12 @@ export function CaptureEvidencePage() {
                   <input 
                     type="text" 
                     placeholder="e.g. PUMP-001" 
+                    value={assetSearchQuery}
+                    onChange={(e) => setAssetSearchQuery(e.target.value)}
                     className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-2 focus:ring-2 focus:ring-primary-500 outline-none text-gray-900 dark:text-white"
                   />
-                  <Button variant="secondary" onClick={() => {
-                    if (mockAssets.length > 1) {
-                      handleSelectAsset(mockAssets[1]);
-                    }
-                  }}>
-                    Verify
+                  <Button variant="secondary" onClick={handleVerifyAsset} disabled={isSearchingAsset}>
+                    {isSearchingAsset ? '...' : 'Verify'}
                   </Button>
                 </div>
               </div>

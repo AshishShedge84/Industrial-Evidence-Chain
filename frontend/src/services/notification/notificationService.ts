@@ -1,9 +1,9 @@
-import { db } from '@mocks/db';
+let localDb: Notification[] = [];
 import type { Notification } from '@type-defs/notification';
 
 export const notificationService = {
   getNotifications(): Notification[] {
-    return db.getNotifications() as Notification[];
+    return localDb;
   },
 
   getNotificationsForUser(userId: string): Notification[] {
@@ -26,7 +26,7 @@ export const notificationService = {
       createdAt: new Date().toISOString(),
       read: false,
     };
-    db.saveNotification(newNotification);
+    localDb.push(newNotification);
 
     return newNotification;
   },
@@ -35,14 +35,14 @@ export const notificationService = {
     const notification = this.getNotifications().find(n => n.id === id);
     if (notification) {
       notification.read = true;
-      db.saveNotification(notification);
+      // localDb is already updated by reference
     }
   },
   
   markAllAsRead(userId: string): void {
     this.getNotificationsForUser(userId).forEach(n => {
       n.read = true;
-      db.saveNotification(n);
+      // updated by ref
     });
   },
 
@@ -54,7 +54,7 @@ export const notificationService = {
       }
       return n;
     });
-    db.setNotifications(updated);
+    localDb = updated;
   },
 
   sendReply(params: {
@@ -70,7 +70,7 @@ export const notificationService = {
       original.replyText = params.message;
       original.repliedAt = new Date().toISOString();
       original.read = true;
-      db.saveNotification(original);
+      // updated by ref
     }
 
     const replyNotification: Notification = {
@@ -86,13 +86,13 @@ export const notificationService = {
       relatedEntity: original?.relatedEntity,
       relatedEntityId: original?.relatedEntityId,
     };
-    db.saveNotification(replyNotification);
+    localDb.push(replyNotification);
 
     return replyNotification;
   },
 
   broadcastToHierarchy(notification: Omit<Notification, 'id' | 'createdAt' | 'read' | 'recipientId'>, minRole: string): void {
-    const users = db.getUsers();
+    const users: any[] = [];
     const roleHierarchy = ['Technician', 'Manager', 'Auditor', 'Admin'];
     const minRoleIndex = roleHierarchy.indexOf(minRole);
     

@@ -6,7 +6,7 @@ import { VerificationResult } from '@components/verification';
 import type { VerificationResult as VerificationResultType, VerificationStatus } from '@type-defs/verification';
 import { QRScanner } from '@components/qr';
 import { verificationService } from '@services/verification/verificationService';
-import { db } from '@mocks/db';
+
 
 export function VerificationPage() {
   const [evidenceId, setEvidenceId] = useState('');
@@ -19,7 +19,7 @@ export function VerificationPage() {
   useEffect(() => {
     // In a real app, you'd fetch the actual history from the API
     // For now, let's grab a few evidence items and fake recent checks based on their status
-    const allEvidence = db.getEvidence();
+    const allEvidence: any[] = [];
     const checks = allEvidence.slice(0, 5).map(ev => ({
       id: ev.evidenceId,
       status: ev.status,

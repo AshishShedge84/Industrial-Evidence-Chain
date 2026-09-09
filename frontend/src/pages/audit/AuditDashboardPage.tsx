@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { PageContainer } from '@components/layout';
 import { Badge, Button } from '@components/ui';
 import { ChevronRight, FileText, Shield, Download, Filter, Search, AlertTriangle, CheckCircle, XCircle, X } from 'lucide-react';
-import { db } from '@mocks/db';
+
 import type { AuditTrailEntry } from '@type-defs/verification';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,7 +31,7 @@ const actionIcons: Record<string, React.ComponentType<{ className?: string }>> =
 };
 
 export function AuditDashboardPage() {
-  const [logs] = useState<AuditTrailEntry[]>(() => db.getAuditLogs());
+  const [logs] = useState<AuditTrailEntry[]>(() => []);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Filter state
