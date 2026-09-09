@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using backend.DTOs.Auth;
 using backend.DTOs.Common;
+using backend.Exceptions;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -183,6 +184,74 @@ public class AuthController : ControllerBase
                 Code = "UNAUTHORIZED",
                 Message = ex.Message,
                 StatusCode = StatusCodes.Status401Unauthorized,
+                TraceId = traceId
+            }, traceId));
+        }
+    }
+    /// <summary>
+    /// Updates the profile of the currently authenticated user.
+    /// Persists FullName and Email to PostgreSQL. Other fields (bio, contactNumber, avatarUrl, etc.)
+    /// are accepted but stored client-side until backend schema supports them.
+    /// </summary>
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    [HttpPatch("profile")]
+    [HttpPut("profile")]
+    [ProducesResponseType(typeof(ApiResponse<AuthUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequestDto request)
+    {
+        var traceId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+
+        var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                       ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrWhiteSpace(subClaim) || !Guid.TryParse(subClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "UNAUTHORIZED",
+                Message = "Invalid or missing user identity in token.",
+                StatusCode = StatusCodes.Status401Unauthorized,
+                TraceId = traceId
+            }, traceId));
+        }
+
+        try
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var updated = await _auth.UpdateProfileAsync(userId, request, ipAddress);
+            return Ok(ApiResponse<AuthUserDto>.SuccessResult(updated, traceId));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "NOT_FOUND",
+                Message = ex.Message,
+                StatusCode = StatusCodes.Status404NotFound,
+                TraceId = traceId
+            }, traceId));
+        }
+        catch (ConflictException ex)
+        {
+            return Conflict(ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "CONFLICT",
+                Message = ex.Message,
+                StatusCode = StatusCodes.Status409Conflict,
+                TraceId = traceId
+            }, traceId));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<AuthUserDto>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "INTERNAL_ERROR",
+                Message = ex.Message,
+                StatusCode = 500,
                 TraceId = traceId
             }, traceId));
         }

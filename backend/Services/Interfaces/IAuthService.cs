@@ -28,4 +28,10 @@ public interface IAuthService
     /// Detects replay attacks if a revoked token is used, invalidating all associated tokens.
     /// </summary>
     Task<RefreshTokenResponseDto?> RefreshTokenAsync(string refreshToken);
+
+    /// <summary>
+    /// Updates the authenticated user's profile and persists changes to PostgreSQL.
+    /// Returns updated AuthUserDto on success.
+    /// </summary>
+    Task<AuthUserDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, string? ipAddress = null, CancellationToken cancellationToken = default);
 }

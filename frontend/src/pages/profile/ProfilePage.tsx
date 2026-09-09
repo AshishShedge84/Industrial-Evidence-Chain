@@ -11,7 +11,6 @@ import {
   Save,
   Lock,
   X,
-  Phone,
   Sparkles,
   Check,
   Plus,
@@ -126,33 +125,38 @@ export function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || isSaving) return; // guard against duplicate submissions
     setIsSaving(true);
 
-    const res = await authService.updateProfile(user.id, formData);
+    try {
+      const res = await authService.updateProfile(user.id, formData);
 
-    setIsSaving(false);
-    if (res.success && res.data) {
-      // Sync local storage user cache immediately
-      try {
-        localStorage.setItem('user', JSON.stringify(res.data));
-      } catch (err) {
-        console.warn('Failed to update local user storage:', err);
+      if (res.success && res.data) {
+        // Refresh auth context from backend (authoritative source)
+        await refreshUser();
+
+        addToast({
+          type: 'success',
+          title: 'Profile Updated',
+          message: 'Your profile identity and contact information have been saved.',
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Update Failed',
+          message: res.error?.message || 'Failed to update profile. Please try again.',
+        });
       }
-
-      await refreshUser();
-
-      addToast({
-        type: 'success',
-        title: 'Profile Updated',
-        message: 'Your profile identity and contact information have been saved.',
-      });
-    } else {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error. Check your connection.';
       addToast({
         type: 'error',
         title: 'Error',
-        message: res.error?.message || 'Failed to update profile',
+        message,
       });
+    } finally {
+      // Always clear the loading state — this fixes the infinite spinner bug
+      setIsSaving(false);
     }
   };
 

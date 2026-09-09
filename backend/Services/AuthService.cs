@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using backend.Data;
 using backend.DTOs.Auth;
+using backend.Exceptions;
 using backend.Helpers;
 using backend.Models;
 using backend.Services.Interfaces;
@@ -23,12 +24,14 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _db;
     private readonly JwtSettings _jwt;
+    private readonly IAuditLogService _auditLogs;
     private const int RefreshTokenLifetimeDays = 7;
 
-    public AuthService(AppDbContext db, IOptions<JwtSettings> jwtOptions)
+    public AuthService(AppDbContext db, IOptions<JwtSettings> jwtOptions, IAuditLogService auditLogs)
     {
         _db = db;
         _jwt = jwtOptions.Value;
+        _auditLogs = auditLogs;
     }
 
     public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto request)
@@ -324,5 +327,79 @@ public class AuthService : IAuthService
         var handler = new JwtSecurityTokenHandler();
         var token   = handler.CreateToken(tokenDescriptor);
         return (handler.WriteToken(token), expiresAt);
+    }
+
+    /// <summary>
+    /// Updates the authenticated user's profile fields and persists them to PostgreSQL.
+    /// Only FullName and Email are persisted (the only columns that exist in the current schema).
+    /// ContactNumber, Bio, AvatarUrl, AvatarType, SelectedMemoji are frontend-only metadata
+    /// until a migration adds those columns.
+    /// </summary>
+    public async Task<AuthUserDto> UpdateProfileAsync(
+        Guid userId,
+        UpdateProfileRequestDto request,
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .SingleOrDefaultAsync(u => u.UserId == userId, cancellationToken)
+            ?? throw new backend.Exceptions.NotFoundException($"User {userId} not found.");
+
+        // Build new full name from firstName+lastName if provided, else use fullName, else keep existing
+        string newFullName = user.FullName;
+        if (!string.IsNullOrWhiteSpace(request.FullName))
+        {
+            newFullName = request.FullName.Trim();
+        }
+        else if (!string.IsNullOrWhiteSpace(request.FirstName))
+        {
+            newFullName = (request.FirstName.Trim() + " " + (request.LastName ?? "").Trim()).Trim();
+        }
+
+        // Validate email uniqueness if changed
+        if (!string.IsNullOrWhiteSpace(request.Email) &&
+            !string.Equals(request.Email.Trim(), user.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            bool emailTaken = await _db.Users.AnyAsync(
+                u => u.Email == request.Email.Trim() && u.UserId != userId,
+                cancellationToken);
+            if (emailTaken)
+                throw new backend.Exceptions.ConflictException("Email address is already in use by another account.");
+            user.Email = request.Email.Trim();
+        }
+
+        user.FullName  = newFullName;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Audit log — best-effort, non-blocking
+        try
+        {
+            await _auditLogs.LogAsync(
+                action:     "USER_PROFILE_UPDATED",
+                userId:     userId,
+                entityType: "User",
+                entityId:   userId.ToString(),
+                details:    $"Profile updated: FullName='{user.FullName}', Email='{user.Email}'",
+                ipAddress:  ipAddress,
+                cancellationToken: cancellationToken);
+        }
+        catch { /* ignore audit failures – profile update already succeeded */ }
+
+        var roles       = user.UserRoles.Select(ur => ur.Role.Name).ToList();
+        var primaryRole = roles.FirstOrDefault() ?? AppRoles.Technician;
+
+        return new AuthUserDto
+        {
+            Id       = user.UserId,
+            Username = user.Username,
+            Email    = user.Email,
+            FullName = user.FullName,
+            Role     = primaryRole,
+            Status   = user.IsActive ? "active" : "pending"
+        };
     }
 }
