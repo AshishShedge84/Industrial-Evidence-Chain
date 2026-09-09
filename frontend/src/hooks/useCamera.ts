@@ -56,6 +56,7 @@ export function useCamera(): CameraState & CameraActions {
 
   const startCamera = useCallback(
     async (newFacingMode?: 'user' | 'environment') => {
+      const modeToTry = newFacingMode || facingMode;
       if (newFacingMode) {
         setFacingMode(newFacingMode);
       }
@@ -69,7 +70,7 @@ export function useCamera(): CameraState & CameraActions {
 
         const newStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: facingMode,
+            facingMode: modeToTry,
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
@@ -78,7 +79,27 @@ export function useCamera(): CameraState & CameraActions {
 
         setStream(newStream);
         setIsActive(true);
-      } catch (err) {
+      } catch (err: any) {
+        // Fallback to user facing camera if environment is not available (e.g. laptops)
+        if (modeToTry === 'environment' && (err.name === 'OverconstrainedError' || err.name === 'NotReadableError')) {
+          try {
+             console.log('Environment camera failed, falling back to user camera');
+             setFacingMode('user');
+             const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
+                audio: true,
+             });
+             setStream(fallbackStream);
+             setIsActive(true);
+             return;
+          } catch (fallbackErr) {
+             const message = fallbackErr instanceof Error ? fallbackErr.message : 'Failed to access camera';
+             setError(message);
+             setIsActive(false);
+             throw fallbackErr;
+          }
+        }
+        
         const message = err instanceof Error ? err.message : 'Failed to access camera';
         setError(message);
         setIsActive(false);

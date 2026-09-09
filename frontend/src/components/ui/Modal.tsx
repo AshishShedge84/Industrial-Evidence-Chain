@@ -63,7 +63,7 @@ export function Modal({
           aria-hidden="true"
         />
         <div 
-          className={`${sizeStyles[size]} w-full glass-panel-strong rounded-2xl shadow-2xl transform transition-all relative overflow-hidden`}
+          className={`${sizeStyles[size]} w-full glass-panel-strong rounded-2xl shadow-2xl transform transition-all relative overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]`}
           style={{ animation: 'modal-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
         >
           {(title || showCloseButton) && (
@@ -91,7 +91,7 @@ export function Modal({
               )}
             </div>
           )}
-          <div className="p-6">{children}</div>
+          <div className="p-6 overflow-y-auto">{children}</div>
         </div>
       </div>
     </div>

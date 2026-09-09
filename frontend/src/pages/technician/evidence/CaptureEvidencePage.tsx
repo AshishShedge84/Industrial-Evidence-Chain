@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageContainer } from '@components/layout';
 import { EvidenceCaptureFlow } from '@components/evidence';
 import { Badge, Button, useToast } from '@components/ui';
-import { ArrowLeft, QrCode, Box, MapPin } from 'lucide-react';
+import { ArrowLeft, QrCode, Box, MapPin, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '@hooks/useAuth';
 import { evidenceService } from '@services/evidence/evidenceService';
 import { QRScanner } from '@components/qr/QRScanner';
@@ -28,6 +28,7 @@ export function CaptureEvidencePage() {
   const [assetSearchQuery, setAssetSearchQuery] = useState('');
   const [isSearchingAsset, setIsSearchingAsset] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [submissionState, setSubmissionState] = useState<{ step: string, status: 'idle' | 'loading' | 'success' | 'error', message?: string }>({ step: '', status: 'idle' });
   const toast = useToast();
 
   const handleQRScan = async (result: string) => {
@@ -105,6 +106,7 @@ export function CaptureEvidencePage() {
     if (!selectedAsset || !user) return;
     
     try {
+      setSubmissionState({ step: 'Creating evidence record...', status: 'loading' });
       const createRes = await evidenceService.createEvidence({
         assetId: selectedAsset.id,
         userId: user.id,
@@ -122,6 +124,7 @@ export function CaptureEvidencePage() {
       const evidenceId = createRes.data.evidenceId || (createRes.data as any).id;
 
       // 2. Upload Media
+      setSubmissionState({ step: 'Uploading media assets...', status: 'loading' });
       const uploadRes = await evidenceService.uploadMedia(evidenceId, evidenceData.mediaFiles);
       
       if (!uploadRes.success) {
@@ -129,6 +132,7 @@ export function CaptureEvidencePage() {
       }
 
       // 3. Submit Evidence (Anchor to Blockchain)
+      setSubmissionState({ step: 'Hashing and anchoring to ledger...', status: 'loading' });
       const submitRes = await evidenceService.submitEvidence(evidenceId);
       
       if (!submitRes.success) {
@@ -136,9 +140,13 @@ export function CaptureEvidencePage() {
       }
 
       // 4. Navigate to success
-      navigate(`/evidence/${evidenceId}`);
+      setSubmissionState({ step: 'Completed', status: 'success' });
+      setTimeout(() => {
+        navigate(`/evidence/${evidenceId}`);
+      }, 1500);
     } catch (err: any) {
       console.error('Evidence upload failed', err);
+      setSubmissionState((prev) => ({ ...prev, status: 'error', message: err.message || 'Failed to upload evidence' }));
       toast.error('Error', err.message || 'Failed to upload evidence. Please try again.');
     }
   };
@@ -242,6 +250,38 @@ export function CaptureEvidencePage() {
             onComplete={handleCaptureComplete}
             onCancel={handleBackToAssetSelection}
           />
+          
+          {submissionState.status !== 'idle' && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-white dark:bg-[#111] border border-black/5 dark:border-white/5 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center">
+                <div className="mb-6 flex justify-center">
+                  {submissionState.status === 'loading' && (
+                    <Loader2 className="h-12 w-12 text-primary-600 animate-spin" />
+                  )}
+                  {submissionState.status === 'success' && (
+                    <CheckCircle className="h-12 w-12 text-success-500" />
+                  )}
+                  {submissionState.status === 'error' && (
+                    <AlertCircle className="h-12 w-12 text-error-500" />
+                  )}
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  {submissionState.status === 'loading' ? 'Processing Evidence' : 
+                   submissionState.status === 'success' ? 'Evidence Secured' : 'Submission Failed'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">
+                  {submissionState.step}
+                </p>
+                {submissionState.status === 'error' && (
+                  <div className="mt-8">
+                    <Button onClick={() => setSubmissionState({ step: '', status: 'idle' })} className="w-full">
+                      Dismiss
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </PageContainer>
     </div>

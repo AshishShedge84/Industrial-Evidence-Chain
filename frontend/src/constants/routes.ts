@@ -40,7 +40,11 @@ export function getDefaultRouteForRole(role: string): string {
 }
 
 export function canAccessRoute(role: string, route: string): boolean {
-  const allowedRoutes = ROLE_ROUTES[role] ?? [];
+  if (!role) return false;
+  const matchedRoleKey = Object.keys(ROLE_ROUTES).find(
+    (k) => k.toLowerCase() === role.toLowerCase()
+  );
+  const allowedRoutes = matchedRoleKey ? (ROLE_ROUTES[matchedRoleKey] ?? []) : [];
   
   // Explicitly deny capture if not authorized, even though '/evidence' prefix matches
   if (route.startsWith(ROUTES.EVIDENCE_CAPTURE) && !allowedRoutes.includes(ROUTES.EVIDENCE_CAPTURE)) {

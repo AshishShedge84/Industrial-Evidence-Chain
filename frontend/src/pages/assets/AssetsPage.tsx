@@ -16,7 +16,7 @@ import { assetService } from '@services/assets/assetService';
 export function AssetsPage() {
   const { hasPermission } = useAuth();
   const [assets, setAssets] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<any>(null);
   const [searchParams, setSearchParams] = useState<any>({ query: '', category: '', status: '' });

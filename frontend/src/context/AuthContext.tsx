@@ -25,12 +25,17 @@ function normalizeUser(rawUser: any): User {
     lastName = parts.slice(1).join(' ') || '';
   }
 
+  let role = rawUser.role || (Array.isArray(rawUser.roles) && rawUser.roles[0]) || 'Technician';
+  if (typeof role === 'string' && role.length > 0) {
+    role = role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+  }
+
   return {
     ...rawUser,
     id: String(rawUser.id || rawUser.userId || ''),
     firstName: firstName || rawUser.username || 'User',
     lastName: lastName || '',
-    role: rawUser.role || 'Technician',
+    role,
     status: rawUser.status || 'active',
   };
 }
@@ -187,7 +192,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Auditor: ['assets:read', 'evidence:read:all', 'evidence:verify', 'audit:read', 'audit:export', 'qr:scan'],
       Admin: ['assets:read', 'assets:write', 'assets:delete', 'evidence:read:all', 'evidence:verify', 'evidence:delete', 'users:read', 'users:write', 'users:delete', 'audit:read', 'audit:export', 'qr:scan', 'qr:generate', 'system:configure'],
     };
-    return permissions[state.user.role]?.includes(permission) ?? false;
+    const matchedKey = Object.keys(permissions).find(
+      (k) => k.toLowerCase() === state.user!.role.toLowerCase()
+    );
+    return (matchedKey ? permissions[matchedKey] : undefined)?.includes(permission) ?? false;
   };
 
   const hasAnyPermission = (permissions: string[]): boolean => {
