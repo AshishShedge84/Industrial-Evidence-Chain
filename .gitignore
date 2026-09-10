@@ -1,2 +1,8 @@
 .env
 node_modules/
+# APP DEV folder (mobile app project — tracked separately)
+APP DEV/
+
+# Build artifacts and large archives
+frontend.zip
+frontend.log
