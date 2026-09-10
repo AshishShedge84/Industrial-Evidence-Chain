@@ -6,6 +6,11 @@
  * READ ONLY — No INSERT, UPDATE, DELETE, or SQL console.
  * Sensitive columns are redacted: password_hash, tokens, secrets.
  * No connection to main IEC frontend (port 3000).
+ *
+ * DB credentials are read from environment variables — never hardcoded.
+ * Required env var: DB_PASSWORD
+ * Optional: DB_HOST (default localhost), DB_PORT (default 5433),
+ *           DB_NAME (default iec_db), DB_USER (default postgres)
  */
 'use strict';
 
@@ -14,15 +19,27 @@ const { Pool } = require('pg');
 const { URL } = require('url');
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const PORT = 3002;
+const PORT = parseInt(process.env.DB_PREVIEW_PORT || '3002', 10);
 const HOST = '127.0.0.1'; // localhost only — never 0.0.0.0
 
+// Credentials read exclusively from environment variables — never stored in source
+const DB_PASSWORD = process.env.DB_PASSWORD;
+if (!DB_PASSWORD) {
+  console.error('');
+  console.error('  [IEC DB Preview] ERROR: DB_PASSWORD environment variable is not set.');
+  console.error('  Start this server via start.sh / start.bat which prompts for the password,');
+  console.error('  or set DB_PASSWORD manually before running:');
+  console.error('  export DB_PASSWORD=<your_postgres_password> && node tools/db-preview/server.js');
+  console.error('');
+  process.exit(1);
+}
+
 const DB_CONFIG = {
-  host: 'localhost',
-  port: 5433,
-  database: 'iec_db',
-  user: 'postgres',
-  password: 'DeepaNova',
+  host:     process.env.DB_HOST || 'localhost',
+  port:     parseInt(process.env.DB_PORT || '5433', 10),
+  database: process.env.DB_NAME || 'iec_db',
+  user:     process.env.DB_USER || 'postgres',
+  password: DB_PASSWORD, // from env only
   max: 5,
   idleTimeoutMillis: 30000,
 };
