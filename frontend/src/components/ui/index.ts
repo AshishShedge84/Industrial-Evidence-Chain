@@ -7,4 +7,6 @@ export * from './Select';
 export * from './Toast';
 export * from './Loader';
 export * from './EmptyState';
-export * from './BrandMark';export * from './VideoBackground';
+export * from './BrandMark';
+export * from './VideoBackground';
+export * from './SecurityIconBox';

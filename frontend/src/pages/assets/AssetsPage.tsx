@@ -4,7 +4,7 @@ import { PageContainer } from '@components/layout';
 import { AssetList } from '@components/assets';
 import { AssetSearch } from '@components/assets';
 import { Button } from '@components/ui';
-import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '@components/ui';
 import { Input } from '@components/ui';

@@ -236,9 +236,15 @@ public class AppDbContext : DbContext
                 .HasColumnType("timestamp with time zone")
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.Property(e => e.AssignedManagerId)
+                .HasColumnType("uuid")
+                .HasColumnName("assigned_manager_id")
+                .IsRequired(false);
+
             entity.HasIndex(e => e.AssetId).HasDatabaseName("ix_evidence_records_asset_id");
             entity.HasIndex(e => e.UserId).HasDatabaseName("ix_evidence_records_user_id");
             entity.HasIndex(e => e.AnchorStatus).HasDatabaseName("ix_evidence_records_anchor_status");
+            entity.HasIndex(e => e.AssignedManagerId).HasDatabaseName("ix_evidence_records_assigned_manager_id");
 
             entity.HasOne(e => e.Asset)
                 .WithMany(a => a.EvidenceRecords)
@@ -249,6 +255,11 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.EvidenceRecords)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.AssignedManager)
+                .WithMany(u => u.ManagedEvidenceRecords)
+                .HasForeignKey(e => e.AssignedManagerId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── EvidenceMedia ──────────────────────────────────────────────────────

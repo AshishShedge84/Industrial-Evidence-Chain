@@ -34,10 +34,20 @@ if (!DB_PASSWORD) {
   process.exit(1);
 }
 
+// Strict IEC Database Enforcement: Host=localhost, Port=5433, DB=iec_db, User=postgres
+const requestedPort = parseInt(process.env.DB_PORT || '5433', 10);
+if (requestedPort !== 5433) {
+  console.warn(`  [IEC DB Preview] WARNING: Disallowed DB_PORT ${requestedPort} detected. IEC strictly uses Port 5433.`);
+}
+const requestedDb = process.env.DB_NAME || 'iec_db';
+if (requestedDb !== 'iec_db') {
+  console.warn(`  [IEC DB Preview] WARNING: Disallowed DB_NAME '${requestedDb}' detected. IEC strictly uses 'iec_db'.`);
+}
+
 const DB_CONFIG = {
-  host:     process.env.DB_HOST || 'localhost',
-  port:     parseInt(process.env.DB_PORT || '5433', 10),
-  database: process.env.DB_NAME || 'iec_db',
+  host:     'localhost',
+  port:     5433,
+  database: 'iec_db',
   user:     process.env.DB_USER || 'postgres',
   password: DB_PASSWORD, // from env only
   max: 5,

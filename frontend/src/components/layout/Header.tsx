@@ -19,6 +19,29 @@ export function Header() {
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
   const { unreadCount } = useNotifications();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          setIsScrolled((prev) => {
+            // Hysteresis: activate at > 20px, deactivate at < 8px
+            if (scrollY > 20) return true;
+            if (scrollY < 8) return false;
+            return prev;
+          });
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -54,28 +77,39 @@ export function Header() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-40 pt-3 sm:pt-4 px-4 sm:px-6 lg:px-8 transition-all duration-300 pointer-events-none ${
+      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 pointer-events-none ${
         sidebarOpen ? 'lg:left-64' : 'lg:left-20'
       }`}
     >
-      <div className="flex items-center justify-between pointer-events-auto">
+      {/* Floating Glass Island Panel */}
+      <div
+        className={`mx-3 sm:mx-6 lg:mx-8 mt-2 sm:mt-3 transition-all duration-300 ease-out pointer-events-auto flex items-center justify-between h-14 sm:h-16 px-3 sm:px-5 rounded-2xl sm:rounded-full ${
+          isScrolled
+            ? 'bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl -webkit-backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.45)]'
+            : 'bg-transparent border-transparent shadow-none'
+        }`}
+      >
         {/* Left mobile menu and logo */}
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="lg:hidden p-2.5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors rounded-full glass-panel"
+            className={`lg:hidden p-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors rounded-full ${
+              isScrolled ? 'hover:bg-black/5 dark:hover:bg-white/10' : 'glass-panel'
+            }`}
             aria-label="Open mobile navigation"
           >
             <Menu className="h-5 w-5" />
           </button>
           
-          <div className="lg:hidden glass-panel px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-sm flex items-center">
+          <div className={`flex items-center ${isScrolled ? '' : 'lg:hidden glass-panel px-3 py-1.5 rounded-full'}`}>
             <BrandMark size="md" />
           </div>
         </div>
 
-        {/* Right floating compact pill */}
-        <div className="flex items-center gap-1 sm:gap-1.5 glass-panel rounded-[24px] p-1 sm:p-1.5 shadow-md ml-auto">
+        {/* Right floating controls */}
+        <div className={`flex items-center gap-1 sm:gap-1.5 rounded-full p-1 transition-colors ${
+          isScrolled ? '' : 'glass-panel shadow-sm'
+        } ml-auto`}>
           {/* Theme Toggle */}
           <div className="relative" ref={themeMenuRef}>
             <button

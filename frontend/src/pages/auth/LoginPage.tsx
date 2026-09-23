@@ -14,7 +14,7 @@ export function LoginPage() {
       <VideoBackground variant="login" />
 
       {/* Main Content Area */}
-      <main className="w-full h-full min-h-screen flex items-center justify-center relative z-10 px-6 py-12">
+      <main className="w-full min-h-[100dvh] flex items-center justify-center relative z-10 px-3 py-6 sm:px-6 sm:py-12">
         <AnimatePresence mode="wait">
           {stage === 'welcome' && (
             <motion.div 
@@ -22,8 +22,8 @@ export function LoginPage() {
               className="w-full flex justify-center"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-              transition={{ duration: 0.5 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.35, ease: 'easeInOut' }}
             >
               <LoginWelcome 
                 onSignIn={() => setStage('login')} 
@@ -36,10 +36,10 @@ export function LoginPage() {
             <motion.div 
               key="auth"
               className="w-full flex justify-center"
-              initial={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
               <AuthFlow 
                 initialMode={stage} 

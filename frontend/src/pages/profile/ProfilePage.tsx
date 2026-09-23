@@ -448,9 +448,14 @@ export function ProfilePage() {
 
             {/* Section 2: Personal & Contact Information */}
             <div className="space-y-6">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                Personal Information
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Personal Information
+                </h3>
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
+                  ✓ Name & Email persist directly to PostgreSQL
+                </span>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <Input
@@ -512,6 +517,9 @@ export function ProfilePage() {
                   disabled={isSaving}
                   placeholder="Share a short bio or duty assignment..."
                 />
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5 font-mono">
+                  * Note: Contact number, bio, and custom avatar are session preferences until backend database schema columns are migrated.
+                </p>
               </div>
             </div>
 

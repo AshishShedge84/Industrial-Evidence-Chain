@@ -86,12 +86,24 @@ public class EvidenceService : IEvidenceService
             throw new ValidationException("Description cannot be empty.");
         }
 
-        // 5. Create Draft Evidence Record
+        // 5. Lookup assigned manager if not provided
+        var assignedMgrId = request.AssignedManagerId;
+        if (!assignedMgrId.HasValue)
+        {
+            assignedMgrId = await _db.UserRoles
+                .Include(ur => ur.Role)
+                .Where(ur => ur.Role.Name == AppRoles.Manager)
+                .Select(ur => (Guid?)ur.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        // 6. Create Draft Evidence Record
         var evidence = new EvidenceRecord
         {
             EvidenceId = Guid.NewGuid(),
             AssetId = request.AssetId,
             UserId = userId,
+            AssignedManagerId = assignedMgrId,
             ActivityType = request.ActivityType,
             Timestamp = request.Timestamp.ToUniversalTime(),
             Latitude = lat,
@@ -131,6 +143,12 @@ public class EvidenceService : IEvidenceService
         var evidence = await _db.EvidenceRecords
             .AsNoTracking()
             .Include(e => e.MediaFiles)
+            .Include(e => e.Asset)
+            .Include(e => e.User)
+                .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+            .Include(e => e.AssignedManager)
+            .Include(e => e.BlockchainProof)
             .SingleOrDefaultAsync(e => e.EvidenceId == evidenceId, cancellationToken);
 
         if (evidence == null)
@@ -141,7 +159,48 @@ public class EvidenceService : IEvidenceService
             .Select(m => m.FileHash!)
             .ToList();
 
-        return MapToDto(evidence, mediaHashes);
+        var evidenceIdStr = evidenceId.ToString();
+        var verificationLog = await _db.AuditLogs
+            .AsNoTracking()
+            .Include(l => l.User)
+            .Where(l => l.Action == "EvidenceVerified" && l.EntityId == evidenceIdStr)
+            .OrderByDescending(l => l.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        string verificationStatus = evidence.AnchorStatus == AnchorStatus.Pending ? "DRAFT" : "PENDING_VERIFICATION";
+        DateTime? verifiedAt = null;
+        string? verifiedBy = null;
+
+        if (verificationLog != null)
+        {
+            verifiedAt = verificationLog.CreatedAt;
+            verifiedBy = verificationLog.User?.FullName ?? verificationLog.User?.Username ?? "Manager";
+            if (!string.IsNullOrWhiteSpace(verificationLog.Details))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(verificationLog.Details);
+                    if (doc.RootElement.TryGetProperty("status", out var statusEl))
+                    {
+                        verificationStatus = statusEl.GetString() ?? "VERIFIED";
+                    }
+                    else
+                    {
+                        verificationStatus = "VERIFIED";
+                    }
+                }
+                catch
+                {
+                    verificationStatus = "VERIFIED";
+                }
+            }
+            else
+            {
+                verificationStatus = "VERIFIED";
+            }
+        }
+
+        return MapToDto(evidence, mediaHashes, verificationStatus, verifiedAt, verifiedBy);
     }
 
     public async Task<PagedResult<EvidenceDto>> GetEvidenceAsync(
@@ -153,7 +212,13 @@ public class EvidenceService : IEvidenceService
 
         IQueryable<EvidenceRecord> q = _db.EvidenceRecords
             .AsNoTracking()
-            .Include(e => e.MediaFiles);
+            .Include(e => e.MediaFiles)
+            .Include(e => e.Asset)
+            .Include(e => e.User)
+                .ThenInclude(u => u!.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+            .Include(e => e.AssignedManager)
+            .Include(e => e.BlockchainProof);
 
         if (filterParams.AssetId.HasValue && filterParams.AssetId.Value != Guid.Empty)
         {
@@ -163,6 +228,11 @@ public class EvidenceService : IEvidenceService
         if (filterParams.UserId.HasValue && filterParams.UserId.Value != Guid.Empty)
         {
             q = q.Where(e => e.UserId == filterParams.UserId.Value);
+        }
+
+        if (filterParams.AssignedManagerId.HasValue && filterParams.AssignedManagerId.Value != Guid.Empty)
+        {
+            q = q.Where(e => e.AssignedManagerId == filterParams.AssignedManagerId.Value);
         }
 
         if (filterParams.ActivityType.HasValue)
@@ -202,10 +272,60 @@ public class EvidenceService : IEvidenceService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = items.Select(e => MapToDto(e, e.MediaFiles
-            .Where(m => !string.IsNullOrWhiteSpace(m.FileHash))
-            .Select(m => m.FileHash!)
-            .ToList())).ToList();
+        var itemIds = items.Select(e => e.EvidenceId.ToString()).ToList();
+        var verificationLogs = await _db.AuditLogs
+            .AsNoTracking()
+            .Include(l => l.User)
+            .Where(l => l.Action == "EvidenceVerified" && l.EntityId != null && itemIds.Contains(l.EntityId))
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var verificationMap = verificationLogs
+            .GroupBy(l => l.EntityId!)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var dtos = items.Select(e =>
+        {
+            var idStr = e.EvidenceId.ToString();
+            string vStatus = e.AnchorStatus == AnchorStatus.Pending ? "DRAFT" : "PENDING_VERIFICATION";
+            DateTime? vAt = null;
+            string? vBy = null;
+
+            if (verificationMap.TryGetValue(idStr, out var log))
+            {
+                vAt = log.CreatedAt;
+                vBy = log.User?.FullName ?? log.User?.Username ?? "Manager";
+                if (!string.IsNullOrWhiteSpace(log.Details))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(log.Details);
+                        if (doc.RootElement.TryGetProperty("status", out var sEl))
+                            vStatus = sEl.GetString() ?? "VERIFIED";
+                        else
+                            vStatus = "VERIFIED";
+                    }
+                    catch
+                    {
+                        vStatus = "VERIFIED";
+                    }
+                }
+                else
+                {
+                    vStatus = "VERIFIED";
+                }
+            }
+
+            return MapToDto(e, e.MediaFiles
+                .Where(m => !string.IsNullOrWhiteSpace(m.FileHash))
+                .Select(m => m.FileHash!)
+                .ToList(), vStatus, vAt, vBy);
+        }).ToList();
+
+        if (!string.IsNullOrWhiteSpace(filterParams.VerificationStatus))
+        {
+            dtos = dtos.Where(d => string.Equals(d.VerificationStatus, filterParams.VerificationStatus, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
         return new PagedResult<EvidenceDto>
         {
@@ -508,6 +628,8 @@ public class EvidenceService : IEvidenceService
 
     public async Task<EvidenceVerificationResponseDto> VerifyEvidenceAsync(
         Guid evidenceId,
+        Guid? userId = null,
+        bool recordAudit = false,
         CancellationToken cancellationToken = default)
     {
         var evidence = await _db.EvidenceRecords
@@ -540,7 +662,7 @@ public class EvidenceService : IEvidenceService
             catch (Exception ex)
             {
                 // Physical file missing or unreadable on disk
-                return new EvidenceVerificationResponseDto
+                var failedDto = new EvidenceVerificationResponseDto
                 {
                     EvidenceId = evidenceId,
                     CalculatedHash = string.Empty,
@@ -551,6 +673,35 @@ public class EvidenceService : IEvidenceService
                     AnchoredAt = evidence.BlockchainProof?.AnchoredAt,
                     Error = $"Physical media file '{media.FileName}' could not be read from storage: {ex.Message}"
                 };
+
+                if (recordAudit || userId.HasValue)
+                {
+                    try
+                    {
+                        await _auditLogs.LogAsync(
+                            action: "EvidenceVerified",
+                            userId: userId,
+                            entityType: "EvidenceRecord",
+                            entityId: evidence.EvidenceId.ToString(),
+                            details: JsonSerializer.Serialize(new
+                            {
+                                status = "FAILED",
+                                errorType = "STORAGE_ERROR",
+                                isValid = false,
+                                calculatedHash = "",
+                                trustedHash = failedDto.TrustedHash,
+                                transactionId = failedDto.TransactionId,
+                                error = failedDto.Error,
+                                verifiedAt = DateTime.UtcNow
+                            }),
+                            cancellationToken: cancellationToken);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                return failedDto;
             }
 
             // Compare freshly computed live hash against stored FileHash
@@ -584,7 +735,7 @@ public class EvidenceService : IEvidenceService
         // If physical file tampering was detected on disk, report INTEGRITY_MISMATCH
         if (physicalFileTampered)
         {
-            return new EvidenceVerificationResponseDto
+            var mismatchDto = new EvidenceVerificationResponseDto
             {
                 EvidenceId = evidenceId,
                 CalculatedHash = calculatedHash,
@@ -595,6 +746,35 @@ public class EvidenceService : IEvidenceService
                 AnchoredAt = evidence.BlockchainProof.AnchoredAt,
                 Error = "INTEGRITY ALERT: Physical media file on disk has been modified or tampered with since anchoring."
             };
+
+            if (recordAudit || userId.HasValue)
+            {
+                try
+                {
+                    await _auditLogs.LogAsync(
+                        action: "EvidenceVerified",
+                        userId: userId,
+                        entityType: "EvidenceRecord",
+                        entityId: evidence.EvidenceId.ToString(),
+                        details: JsonSerializer.Serialize(new
+                        {
+                            status = "INTEGRITY_MISMATCH",
+                            errorType = "FILE_TAMPERED",
+                            isValid = false,
+                            calculatedHash = mismatchDto.CalculatedHash,
+                            trustedHash = mismatchDto.TrustedHash,
+                            transactionId = mismatchDto.TransactionId,
+                            error = mismatchDto.Error,
+                            verifiedAt = DateTime.UtcNow
+                        }),
+                        cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                }
+            }
+
+            return mismatchDto;
         }
 
         var adapter = _serviceProvider.GetService<IBlockchainAdapter>();
@@ -621,21 +801,71 @@ public class EvidenceService : IEvidenceService
             CalculatedHash = calculatedHash
         }, cancellationToken);
 
-        return new EvidenceVerificationResponseDto
+        bool isValid = verifyResult.IsValid;
+        string status = verifyResult.Status;
+        string? trustedHash = verifyResult.TrustedHash ?? evidence.BlockchainProof.EvidenceHash;
+
+        if (status == "PROOF_NOT_FOUND" && evidence.BlockchainProof != null)
+        {
+            bool dbMatches = string.Equals(calculatedHash, evidence.BlockchainProof.EvidenceHash, StringComparison.OrdinalIgnoreCase);
+            isValid = dbMatches;
+            status = dbMatches ? "VERIFIED" : "INTEGRITY_MISMATCH";
+            trustedHash = evidence.BlockchainProof.EvidenceHash;
+        }
+
+        var resultDto = new EvidenceVerificationResponseDto
         {
             EvidenceId = evidenceId,
             CalculatedHash = calculatedHash,
-            TrustedHash = verifyResult.TrustedHash ?? evidence.BlockchainProof.EvidenceHash,
-            IsValid = verifyResult.IsValid,
-            Status = verifyResult.Status,
-            TransactionId = verifyResult.TransactionId ?? evidence.BlockchainProof.TransactionId,
-            AnchoredAt = evidence.BlockchainProof.AnchoredAt,
-            Error = verifyResult.Error
+            TrustedHash = trustedHash,
+            IsValid = isValid,
+            Status = status,
+            TransactionId = verifyResult.TransactionId ?? evidence.BlockchainProof?.TransactionId,
+            AnchoredAt = evidence.BlockchainProof?.AnchoredAt,
+            Error = isValid ? null : (status == "INTEGRITY_MISMATCH" ? "Cryptographic hash does not match anchored ledger proof." : verifyResult.Error)
         };
+
+        if (recordAudit || userId.HasValue)
+        {
+            try
+            {
+                await _auditLogs.LogAsync(
+                    action: "EvidenceVerified",
+                    userId: userId,
+                    entityType: "EvidenceRecord",
+                    entityId: evidence.EvidenceId.ToString(),
+                    details: JsonSerializer.Serialize(new
+                    {
+                        status = resultDto.Status,
+                        isValid = resultDto.IsValid,
+                        calculatedHash = resultDto.CalculatedHash,
+                        trustedHash = resultDto.TrustedHash,
+                        transactionId = resultDto.TransactionId,
+                        verifiedAt = DateTime.UtcNow
+                    }),
+                    cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                // Fallback: verification still returns even if audit logging fails
+            }
+        }
+
+        return resultDto;
     }
 
-    private static EvidenceDto MapToDto(EvidenceRecord record, IList<string> mediaHashes)
+    private static EvidenceDto MapToDto(
+        EvidenceRecord record,
+        IList<string> mediaHashes,
+        string verificationStatus = "PENDING_VERIFICATION",
+        DateTime? verifiedAt = null,
+        string? verifiedBy = null)
     {
+        if (record.AnchorStatus == AnchorStatus.Pending)
+        {
+            verificationStatus = "DRAFT";
+        }
+
         return new EvidenceDto
         {
             EvidenceId = record.EvidenceId,
@@ -649,9 +879,179 @@ public class EvidenceService : IEvidenceService
             MediaHashes = mediaHashes,
             AnchorStatus = record.AnchorStatus,
             EvidenceHash = record.EvidenceHash,
+            AssetName = record.Asset?.Name,
+            AssetCode = record.Asset?.AssetCode,
+            UserName = record.User?.FullName ?? record.User?.Username,
+            UserRole = record.User?.UserRoles?.Select(ur => ur.Role?.Name).FirstOrDefault(),
             CreatedAt = record.CreatedAt,
-            UpdatedAt = null
+            UpdatedAt = null,
+            VerificationStatus = verificationStatus,
+            VerifiedAt = verifiedAt,
+            VerifiedBy = verifiedBy,
+            AssignedManagerId = record.AssignedManagerId,
+            AssignedManagerName = record.AssignedManager?.FullName ?? record.AssignedManager?.Username,
+            TransactionId = record.BlockchainProof?.TransactionId,
+            AnchoredAt = record.BlockchainProof?.AnchoredAt
         };
+    }
+
+    public async Task<IReadOnlyList<AuditTrailEntryDto>> GetEvidenceAuditTrailAsync(
+        Guid evidenceId,
+        CancellationToken cancellationToken = default)
+    {
+        var evidenceIdStr = evidenceId.ToString();
+
+        var logs = await _db.AuditLogs
+            .AsNoTracking()
+            .Include(l => l.User)
+            .Where(l => (l.EntityType == "EvidenceRecord" || l.EntityType == "Evidence" || l.EntityType == "EvidenceMedia") 
+                     && (l.EntityId == evidenceIdStr || (l.Details != null && l.Details.Contains(evidenceIdStr))))
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var entries = new List<AuditTrailEntryDto>();
+
+        foreach (var log in logs)
+        {
+            JsonElement? detailsEl = null;
+            if (!string.IsNullOrWhiteSpace(log.Details))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(log.Details);
+                    detailsEl = doc.RootElement.Clone();
+                }
+                catch
+                {
+                }
+            }
+
+            var performer = log.User?.FullName ?? log.User?.Username;
+            if (string.IsNullOrWhiteSpace(performer))
+            {
+                performer = log.UserId.HasValue ? log.UserId.Value.ToString() : "System";
+            }
+
+            entries.Add(new AuditTrailEntryDto
+            {
+                Id = log.AuditLogId,
+                EvidenceId = evidenceId,
+                Action = log.Action,
+                PerformedBy = performer,
+                PerformedAt = log.CreatedAt,
+                Details = detailsEl,
+                IpAddress = log.IpAddress,
+                UserAgent = null
+            });
+        }
+
+        return entries;
+    }
+
+    public async Task<EvidenceVerificationResponseDto> GetEvidenceVerificationAsync(
+        Guid evidenceId,
+        CancellationToken cancellationToken = default)
+    {
+        var evidence = await _db.EvidenceRecords
+            .AsNoTracking()
+            .Include(e => e.BlockchainProof)
+            .SingleOrDefaultAsync(e => e.EvidenceId == evidenceId, cancellationToken);
+
+        if (evidence == null)
+        {
+            throw new NotFoundException($"Evidence with ID '{evidenceId}' was not found.");
+        }
+
+        var evidenceIdStr = evidenceId.ToString();
+        var verificationLog = await _db.AuditLogs
+            .AsNoTracking()
+            .Include(l => l.User)
+            .Where(l => l.Action == "EvidenceVerified" && l.EntityId == evidenceIdStr)
+            .OrderByDescending(l => l.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (verificationLog != null && !string.IsNullOrWhiteSpace(verificationLog.Details))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(verificationLog.Details);
+                var root = doc.RootElement;
+                string status = root.TryGetProperty("status", out var s) ? s.GetString() ?? "VERIFIED" : "VERIFIED";
+                bool isValid = root.TryGetProperty("isValid", out var v) && v.GetBoolean();
+                string calcHash = root.TryGetProperty("calculatedHash", out var ch) ? ch.GetString() ?? "" : "";
+                string trustedHash = root.TryGetProperty("trustedHash", out var th) ? th.GetString() ?? "" : (evidence.BlockchainProof?.EvidenceHash ?? evidence.EvidenceHash ?? "");
+                string? txId = root.TryGetProperty("transactionId", out var tx) ? tx.GetString() : evidence.BlockchainProof?.TransactionId;
+                string? err = root.TryGetProperty("error", out var er) ? er.GetString() : null;
+
+                return new EvidenceVerificationResponseDto
+                {
+                    EvidenceId = evidenceId,
+                    CalculatedHash = calcHash,
+                    TrustedHash = trustedHash,
+                    IsValid = isValid,
+                    Status = status,
+                    TransactionId = txId,
+                    AnchoredAt = evidence.BlockchainProof?.AnchoredAt,
+                    Error = err
+                };
+            }
+            catch
+            {
+            }
+        }
+
+        return new EvidenceVerificationResponseDto
+        {
+            EvidenceId = evidenceId,
+            CalculatedHash = string.Empty,
+            TrustedHash = evidence.BlockchainProof?.EvidenceHash ?? evidence.EvidenceHash,
+            IsValid = false,
+            Status = evidence.AnchorStatus == AnchorStatus.Anchored ? "PENDING_VERIFICATION" : "PENDING",
+            TransactionId = evidence.BlockchainProof?.TransactionId,
+            AnchoredAt = evidence.BlockchainProof?.AnchoredAt,
+            Error = evidence.AnchorStatus != AnchorStatus.Anchored ? "Evidence has not been anchored on the blockchain ledger yet." : null
+        };
+    }
+
+    public async Task<bool> RecordOperationalActionAsync(
+        Guid evidenceId,
+        string action,
+        string? reason,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var evidence = await _db.EvidenceRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(e => e.EvidenceId == evidenceId, cancellationToken);
+
+        if (evidence == null)
+        {
+            throw new NotFoundException($"Evidence with ID '{evidenceId}' was not found.");
+        }
+
+        string auditAction = action.ToUpperInvariant() switch
+        {
+            "ESCALATE" => "EvidenceEscalated",
+            "REQUEST_RECAPTURE" => "EvidenceRecaptureRequested",
+            "ACKNOWLEDGE_MISMATCH" => "EvidenceMismatchAcknowledged",
+            "FLAG_STORAGE_ISSUE" => "EvidenceStorageIssueFlagged",
+            _ => $"EvidenceAction_{action}"
+        };
+
+        await _auditLogs.LogAsync(
+            action: auditAction,
+            userId: userId,
+            entityType: "EvidenceRecord",
+            entityId: evidenceId.ToString(),
+            details: JsonSerializer.Serialize(new
+            {
+                action = action,
+                reason = reason ?? "Operational action performed by manager.",
+                timestamp = DateTime.UtcNow
+            }),
+            cancellationToken: cancellationToken);
+
+        return true;
     }
 
     private static MediaFileType InferMediaFileType(string fileName, string contentType)

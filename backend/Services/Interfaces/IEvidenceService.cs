@@ -81,9 +81,36 @@ public interface IEvidenceService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves cryptographic verification information for an evidence record against the blockchain ledger.
+    /// Retrieves or triggers cryptographic verification information for an evidence record against the blockchain ledger.
+    /// When recordAudit is true, records an EvidenceVerified audit event.
     /// </summary>
     Task<EvidenceVerificationResponseDto> VerifyEvidenceAsync(
         Guid evidenceId,
+        Guid? userId = null,
+        bool recordAudit = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves the audit trail entries recorded for a specific evidence record.
+    /// </summary>
+    Task<IReadOnlyList<AuditTrailEntryDto>> GetEvidenceAuditTrailAsync(
+        Guid evidenceId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves the latest verification state and proof for an evidence record without re-running hashing.
+    /// </summary>
+    Task<EvidenceVerificationResponseDto> GetEvidenceVerificationAsync(
+        Guid evidenceId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a manager operational action (e.g. Escalate, Request Re-capture, Acknowledge) with an audit entry.
+    /// </summary>
+    Task<bool> RecordOperationalActionAsync(
+        Guid evidenceId,
+        string action,
+        string? reason,
+        Guid userId,
         CancellationToken cancellationToken = default);
 }

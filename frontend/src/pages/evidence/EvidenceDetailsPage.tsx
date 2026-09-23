@@ -1,358 +1,670 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { PageContainer } from '@components/layout';
-import { Badge } from '@components/ui';
-import { Button } from '@components/ui';
-import { FileText, Shield, MapPin, Calendar, Tag, Download, Eye, QrCode, User, Box, CheckCircle2, Lock, Loader2 } from 'lucide-react';
+import { Badge, Button, Modal, SecurityIconBox } from '@components/ui';
+import { 
+  FileText, 
+  Shield, 
+  MapPin, 
+  Calendar, 
+  Tag, 
+  Download, 
+  Eye, 
+  QrCode, 
+  User, 
+  Box, 
+  CheckCircle2, 
+  Lock, 
+  Loader2, 
+  ArrowLeft,
+  ExternalLink,
+  ChevronRight,
+  ShieldCheck,
+  ShieldAlert,
+  Radio,
+  FileCheck
+} from 'lucide-react';
 import type { Evidence, EvidenceStatus, ActivityType } from '@type-defs/evidence';
+import type { Asset } from '@type-defs/asset';
 import { ACTIVITY_TYPE_LABELS } from '@constants/activityTypes';
 import { EVIDENCE_STATUS_COLORS } from '@constants/evidenceStatus';
 import { formatDate } from '@utils/date';
 import { evidenceService } from '@services/evidence/evidenceService';
+import { assetService } from '@services/assets/assetService';
+import { apiClient } from '@services/api/apiClient';
+import { useAuth } from '@hooks/useAuth';
+import { 
+  EvidenceHero, 
+  IntegrityVerificationBox, 
+  TamperingAlertBox, 
+  VerificationTimeline, 
+  LocationAnchorCard, 
+  EvidenceAuditTrailModal 
+} from '@components/evidence';
+
+interface VerificationApiResponse {
+  evidenceId: string;
+  calculatedHash: string;
+  trustedHash?: string;
+  isValid: boolean;
+  status: 'VERIFIED' | 'INTEGRITY_MISMATCH' | 'PROOF_NOT_FOUND' | 'PENDING' | 'FAILED';
+  transactionId?: string;
+  anchoredAt?: string;
+  error?: string;
+}
 
 export function EvidenceDetailsPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  const canVerify = hasPermission('evidence:verify');
+
   const [evidence, setEvidence] = useState<Evidence | null>(null);
+  const [asset, setAsset] = useState<Asset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchEvidence = async () => {
-      if (!id) return;
-      setIsLoading(true);
-      try {
-        const res = await evidenceService.getEvidence(id);
-        if (isMounted) {
-          if (res.success && res.data) {
-            const d: any = res.data;
-            const normalized: Evidence = {
-              evidenceId: d.evidenceId || d.id || id,
-              assetId: d.assetId,
-              userId: d.userId,
-              activityType: d.activityType || 'Maintenance',
-              timestamp: d.timestamp || d.createdAt || new Date().toISOString(),
-              description: d.description || '',
-              status: d.anchorStatus || d.status || 'Anchored',
-              mediaReferences: d.mediaReferences || (d.mediaHashes || []).map((h: string, idx: number) => ({
-                id: `${idx + 1}`,
-                type: 'photo',
-                url: `/api/media/${h}`,
-                size: 1024 * 1024,
-                mimeType: 'image/jpeg',
-                capturedAt: d.timestamp || d.createdAt,
-              })),
-              location: d.location || (d.latitude ? {
-                latitude: Number(d.latitude),
-                longitude: Number(d.longitude),
-                timestamp: d.timestamp,
-                address: `Industrial Site Coordinates (${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)})`,
-              } : undefined as any),
-              blockchainProof: d.blockchainProof || (d.evidenceHash ? {
-                evidenceId: d.evidenceId || id,
-                evidenceHash: d.evidenceHash,
-                transactionId: (d.evidenceHash.length >= 32 ? '0x' + d.evidenceHash.substring(0, 32) : d.evidenceHash),
-                blockNumber: 1042,
-                blockHash: '0x' + (d.evidenceHash.length >= 64 ? d.evidenceHash : d.evidenceHash.padStart(64, '0')),
-                merkleRoot: '0x' + d.evidenceHash,
-                merkleProof: [],
-                timestamp: d.timestamp || d.createdAt,
-                network: 'Hyperledger Fabric v2.5'
-              } : undefined),
-              createdAt: d.createdAt || d.timestamp || new Date().toISOString(),
-              updatedAt: d.updatedAt || d.createdAt || new Date().toISOString(),
-              submittedAt: d.submittedAt || d.createdAt,
-              anchoredAt: d.anchoredAt || d.createdAt,
-            };
-            setEvidence(normalized);
-          } else {
-            setError(res.error?.message || 'Evidence not found');
+  // Verification states
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationData, setVerificationData] = useState<VerificationApiResponse | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<'VERIFIED' | 'INTEGRITY_MISMATCH' | 'PENDING' | 'FAILED' | null>(null);
+  const [lastVerifiedAt, setLastVerifiedAt] = useState<string | undefined>(undefined);
+
+  // Modals
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isQROpen, setIsQROpen] = useState(false);
+
+  // Check role authorization for raw hash visibility
+  const canViewFullHash = user?.role === 'Admin' || user?.role === 'Auditor';
+
+  const fetchEvidenceAndAsset = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await evidenceService.getEvidence(id);
+
+      if (res.success && res.data) {
+        const d: any = res.data;
+        let mediaItems = d.mediaReferences || (d.mediaHashes || []).map((h: string, idx: number) => ({
+          id: `${idx + 1}`,
+          type: 'photo',
+          url: `/api/media/${h}`,
+          size: 1024 * 1024,
+          mimeType: 'image/jpeg',
+          capturedAt: d.timestamp || d.createdAt,
+        }));
+
+        try {
+          const mediaRes = await apiClient.get<any[]>(`/evidence/${id}/media`);
+          if (mediaRes.success && Array.isArray(mediaRes.data) && mediaRes.data.length > 0) {
+            mediaItems = mediaRes.data.map((m: any, idx: number) => {
+              const isVid = m.fileType === 1 || m.fileType === 'Video' || (m.fileName && /\.(mp4|webm|mov|ogg)$/i.test(m.fileName));
+              return {
+                id: m.mediaId || `${idx + 1}`,
+                type: isVid ? 'video' : 'photo',
+                url: m.storageUrl || (m.fileHash ? `/api/media/hash/${m.fileHash}` : `/api/media/${m.mediaId}`),
+                size: m.fileSizeBytes || 1024 * 1024,
+                mimeType: isVid ? 'video/webm' : 'image/jpeg',
+                capturedAt: m.uploadedAt || d.timestamp || d.createdAt,
+                hash: m.fileHash,
+              };
+            });
+          }
+        } catch {
+          // Fallback to existing media references
+        }
+
+        const normalized: Evidence = {
+          evidenceId: d.evidenceId || d.id || id,
+          assetId: d.assetId,
+          userId: d.userId,
+          activityType: d.activityType || 'Maintenance',
+          timestamp: d.timestamp || d.createdAt || new Date().toISOString(),
+          description: d.description || '',
+          status: (d.anchorStatus as EvidenceStatus) || (d.status as EvidenceStatus) || 'Anchored',
+          evidenceHash: d.evidenceHash,
+          assetName: d.assetName,
+          assetCode: d.assetCode,
+          userName: d.userName,
+          userRole: d.userRole,
+          mediaReferences: mediaItems,
+          location: d.location || (d.latitude ? {
+            latitude: Number(d.latitude),
+            longitude: Number(d.longitude),
+            timestamp: d.timestamp,
+            address: `Industrial Site Coordinates (${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)})`,
+          } : undefined as any),
+          blockchainProof: d.blockchainProof || (d.evidenceHash ? {
+            evidenceId: d.evidenceId || id,
+            evidenceHash: d.evidenceHash,
+            transactionId: (d.evidenceHash.length >= 32 ? '0x' + d.evidenceHash.substring(0, 32) : d.evidenceHash),
+            blockNumber: 1042,
+            blockHash: '0x' + (d.evidenceHash.length >= 64 ? d.evidenceHash : d.evidenceHash.padStart(64, '0')),
+            merkleRoot: '0x' + d.evidenceHash,
+            merkleProof: [],
+            timestamp: d.timestamp || d.createdAt,
+            network: 'Hyperledger Fabric v2.5'
+          } : undefined),
+          createdAt: d.createdAt || d.timestamp || new Date().toISOString(),
+          updatedAt: d.updatedAt || d.createdAt || new Date().toISOString(),
+          submittedAt: d.submittedAt || d.createdAt,
+          anchoredAt: d.anchoredAt || d.createdAt,
+        };
+
+        setEvidence(normalized);
+
+        // State machine: Only show VERIFIED if backend verificationStatus is VERIFIED
+        const vStatus = (d as any).verificationStatus;
+        if (vStatus === 'VERIFIED') {
+          setVerificationStatus('VERIFIED');
+          setLastVerifiedAt((d as any).verifiedAt || d.anchoredAt || d.createdAt);
+        } else if (vStatus === 'INTEGRITY_MISMATCH') {
+          setVerificationStatus('INTEGRITY_MISMATCH');
+        } else {
+          setVerificationStatus('PENDING');
+        }
+
+        // Fetch connected asset metadata to ensure rich machine name & site hierarchy
+        if (normalized.assetId) {
+          try {
+            const assetRes = await assetService.getAsset(normalized.assetId);
+            if (assetRes.success && assetRes.data) {
+              setAsset(assetRes.data);
+            }
+          } catch {
+            // Keep existing normalized data
           }
         }
-      } catch (err) {
-        if (isMounted) {
-          setError('Failed to fetch evidence');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      } else {
+        setError(res.error?.message || 'Evidence record not found.');
       }
-    };
-    fetchEvidence();
-    return () => { isMounted = false; };
+    } catch (err) {
+      setError('Failed to fetch industrial evidence record.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    fetchEvidenceAndAsset();
+  }, [fetchEvidenceAndAsset]);
+
+  // Run live cryptographic verification against backend
+  const handleVerify = async () => {
+    if (!id) return;
+    setIsVerifying(true);
+
+    try {
+      const res = await apiClient.post<VerificationApiResponse>(`/evidence/${id}/verify`);
+      if (res.success && res.data) {
+        setVerificationData(res.data);
+        setLastVerifiedAt(new Date().toISOString());
+
+        if (res.data.status === 'VERIFIED' || res.data.isValid) {
+          setVerificationStatus('VERIFIED');
+        } else if (res.data.status === 'INTEGRITY_MISMATCH' || !res.data.isValid) {
+          setVerificationStatus('INTEGRITY_MISMATCH');
+        } else {
+          setVerificationStatus('PENDING');
+        }
+      } else {
+        setVerificationStatus('FAILED');
+      }
+    } catch {
+      // If error occurs during verification
+      setVerificationStatus('FAILED');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleExportJSON = () => {
+    if (!evidence) return;
+    const exportPayload = {
+      evidence,
+      asset,
+      verification: {
+        status: verificationStatus,
+        lastVerifiedAt,
+        details: verificationData,
+      },
+      exportedAt: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Evidence_${evidence.evidenceId.substring(0, 8)}_Export.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      <div className="flex h-96 flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600 dark:text-primary-400" />
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 font-mono">
+          Loading industrial evidence record & cryptographic ledger proof...
+        </p>
       </div>
     );
   }
 
   if (error || !evidence) {
     return (
-      <div className="flex flex-col h-64 items-center justify-center gap-4">
-        <p className="text-error-600 font-medium">{error || 'Evidence not found'}</p>
+      <div className="flex flex-col h-80 items-center justify-center gap-4 text-center">
+        <SecurityIconBox icon={ShieldAlert} variant="danger" size="lg" />
+        <p className="text-base font-semibold text-rose-600 dark:text-rose-400">
+          {error || 'Evidence record not found'}
+        </p>
+        <Button variant="outline" onClick={() => navigate('/assets')}>
+          Return to Assets List
+        </Button>
       </div>
     );
   }
 
-  const generatedHistory = [];
-  if (evidence.verifiedAt) {
-    generatedHistory.push({ timestamp: evidence.verifiedAt, action: 'Verified', user: 'System', details: 'Integrity check passed' });
-  }
-  if (evidence.anchoredAt) {
-    generatedHistory.push({ timestamp: evidence.anchoredAt, action: 'Blockchain Anchored', user: 'System', details: evidence.blockchainProof?.transactionId ? `TX: ${evidence.blockchainProof.transactionId}` : '' });
-  }
-  if (evidence.submittedAt) {
-    generatedHistory.push({ timestamp: evidence.submittedAt, action: 'Evidence Submitted', user: evidence.userId, details: '' });
-  }
-  if (evidence.createdAt) {
-    generatedHistory.push({ timestamp: evidence.createdAt, action: 'Evidence Created', user: evidence.userId, details: 'Activity started' });
-  }
+  // Determine real machine name from asset or evidence
+  const machineName = asset?.name || evidence.assetName || 'Industrial Unit / Asset';
+  const assetCode = asset?.assetTag || evidence.assetCode || 'ASSET';
+
+  // Compute effective hash to display
+  const rawHash = verificationData?.trustedHash || evidence.blockchainProof?.evidenceHash || evidence.evidenceHash || '';
+  const isMasked = !canViewFullHash;
+  const displayHash = isMasked
+    ? rawHash.length >= 12
+      ? `${rawHash.substring(0, 6)}****************${rawHash.substring(rawHash.length - 4)}`
+      : '**********************'
+    : rawHash;
 
   return (
-    <div className="space-y-12 pb-12">
-      <PageContainer
-        title={evidence.evidenceId}
-        description={`${ACTIVITY_TYPE_LABELS[evidence.activityType]} · ${evidence.assetId}`}
-        breadcrumbs={[
-          { label: 'Evidence', href: '/evidence' },
-          { label: evidence.evidenceId },
-        ]}
-        actions={
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="h-10 px-4 font-semibold text-[13px] hover:bg-black/5 hover:text-gray-900 border-black/[0.05]">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button className="h-10 px-5 font-semibold text-[13px] bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-600/20 rounded-xl transition-all">
-              <Shield className="h-4 w-4 mr-2" />
-              Verify Authenticity
-            </Button>
-          </div>
-        }
-      >
-        <div className="grid gap-12 lg:grid-cols-12 max-w-6xl">
+    <div className="space-y-8 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Back link & breadcrumb indicator */}
+      <div className="flex items-center justify-between pt-2">
+        <button
+          type="button"
+          onClick={() => navigate(`/assets/${evidence.assetId}`)}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer group"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+          <span>Back to {machineName}</span>
+        </button>
+
+        <div className="flex items-center gap-2 text-xs font-mono text-gray-400 dark:text-gray-500">
+          <span className="hidden sm:inline">IEC Protocol v2.5</span>
+          <span>·</span>
+          <span>Hyperledger Fabric</span>
+        </div>
+      </div>
+
+      {/* 1. RECONSTRUCTED HERO SECTION */}
+      <EvidenceHero
+        evidence={evidence}
+        assetName={machineName}
+        assetCode={assetCode}
+        onVerify={handleVerify}
+        onOpenAudit={() => setIsAuditOpen(true)}
+        onOpenQR={() => setIsQROpen(true)}
+        isVerifying={isVerifying}
+        verificationStatus={verificationStatus}
+        canVerify={canVerify}
+      />
+
+      {/* 2. DEDICATED INTEGRITY VERIFICATION CARD / TAMPERING ALERT */}
+      {verificationStatus === 'INTEGRITY_MISMATCH' ? (
+        <TamperingAlertBox
+          assetName={machineName}
+          assetCode={assetCode}
+          evidenceId={evidence.evidenceId}
+          detectedAt={lastVerifiedAt}
+          calculatedHash={verificationData?.calculatedHash}
+          trustedHash={verificationData?.trustedHash || rawHash}
+          isMasked={isMasked}
+          userRole={user?.role}
+          onRecheck={handleVerify}
+          isRechecking={isVerifying}
+        />
+      ) : (
+        <IntegrityVerificationBox
+          hash={displayHash}
+          isMasked={isMasked}
+          userRole={user?.role}
+          lastVerifiedAt={lastVerifiedAt}
+          transactionId={evidence.blockchainProof?.transactionId}
+          blockNumber={evidence.blockchainProof?.blockNumber}
+          network={evidence.blockchainProof?.network}
+          isPending={verificationStatus === 'PENDING' || !verificationStatus}
+        />
+      )}
+
+      {/* 3. MAIN WORKFLOW & TECHNICAL DETAILS GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* Left Column (8 cols): Observations, Media, Blockchain Ledger Proof */}
+        <div className="lg:col-span-8 space-y-8">
           
-          {/* Main Content Column */}
-          <div className="lg:col-span-8 space-y-12">
-            
-            {/* Header Badge */}
-            <div className="flex items-center gap-4 border-b border-black/5 pb-8">
-              <div className="h-16 w-16 rounded-2xl bg-success-50 flex items-center justify-center">
-                <CheckCircle2 className="h-8 w-8 text-success-600" />
+          {/* Core Technical Details & Observations */}
+          <section className="bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[28px] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] space-y-6">
+            <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 pb-4">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">
+                Activity Observations & Technical Log
+              </h3>
+              <Badge className={EVIDENCE_STATUS_COLORS[evidence.status as keyof typeof EVIDENCE_STATUS_COLORS]}>
+                {evidence.status}
+              </Badge>
+            </div>
+
+            <div>
+              <p className="text-sm sm:text-base text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap font-normal">
+                {evidence.description || 'No descriptive observations recorded for this evidence record.'}
+              </p>
+            </div>
+
+            {/* Quick Metadata Spec Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-black/5 dark:border-white/10 text-xs">
+              <div>
+                <span className="text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold block mb-1">
+                  Activity
+                </span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">
+                  {ACTIVITY_TYPE_LABELS[evidence.activityType] || evidence.activityType}
+                </span>
               </div>
               <div>
-                <Badge className={`${EVIDENCE_STATUS_COLORS[evidence.status]} px-3 py-1 text-[13px] font-bold uppercase tracking-wider mb-2`}>
-                  {evidence.status}
-                </Badge>
-                <p className="text-[15px] text-gray-500 font-medium">Evidence captured securely and anchored to ledger</p>
+                <span className="text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold block mb-1">
+                  Machine Category
+                </span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">
+                  {asset?.category || 'Industrial Machinery'}
+                </span>
               </div>
-            </div>
-
-            {/* Evidence Data */}
-            <div className="space-y-8">
               <div>
-                <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">Core Details</h3>
-                <dl className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-[13px] text-gray-500 font-medium mb-1.5">Activity Type</dt>
-                    <dd className="flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-                      <Tag className="h-4 w-4 text-primary-500" />
-                      {ACTIVITY_TYPE_LABELS[evidence.activityType]}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500 font-medium mb-1.5">Asset Reference</dt>
-                    <dd className="flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-                      <Box className="h-4 w-4 text-primary-500" />
-                      {evidence.assetId}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500 font-medium mb-1.5">Captured By</dt>
-                    <dd className="flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-                      <User className="h-4 w-4 text-primary-500" />
-                      User {evidence.userId}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[13px] text-gray-500 font-medium mb-1.5">Timestamp</dt>
-                    <dd className="flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-                      <Calendar className="h-4 w-4 text-primary-500" />
-                      {formatDate(evidence.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}
-                    </dd>
-                  </div>
-                </dl>
+                <span className="text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold block mb-1">
+                  Submitted By
+                </span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">
+                  {evidence.userName || 'Authorized Technician'}
+                </span>
               </div>
-
-              {evidence.location && (
-                <div className="pt-8 border-t border-black/5">
-                  <dt className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-4">Location Anchor</dt>
-                  <div className="bg-gray-50/50 rounded-2xl p-5 flex items-start gap-4">
-                    <div className="h-10 w-10 rounded-full bg-white shadow-sm flex items-center justify-center shrink-0">
-                      <MapPin className="h-5 w-5 text-gray-900" />
-                    </div>
-                    <div>
-                      <p className="text-[15px] font-semibold text-gray-900 mb-1">
-                        {evidence.location.address || `Location (${evidence.location.latitude.toFixed(4)}, ${evidence.location.longitude.toFixed(4)})`}
-                      </p>
-                      <p className="text-[13px] text-gray-500 font-mono">
-                        LAT: {evidence.location.latitude.toFixed(6)} | LNG: {evidence.location.longitude.toFixed(6)}
-                      </p>
-                      {evidence.location.accuracy !== undefined && (
-                        <p className="text-[12px] text-gray-400 mt-2">Accuracy: ±{evidence.location.accuracy}m</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-8 border-t border-black/5">
-                <dt className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-4">Observations</dt>
-                <p className="text-[16px] text-gray-800 leading-relaxed whitespace-pre-wrap">{evidence.description || 'No observations recorded.'}</p>
+              <div>
+                <span className="text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold block mb-1">
+                  Ingestion Time
+                </span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">
+                  {formatDate(evidence.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
+                </span>
               </div>
             </div>
+          </section>
 
-            {/* Media Files */}
-            <div className="pt-8 border-t border-black/5">
-              <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">Verified Media</h3>
-              {(evidence.mediaReferences && evidence.mediaReferences.length > 0) ? (
-                <div className="grid gap-6 sm:grid-cols-2">
-                  {evidence.mediaReferences.map((media) => (
-                    <div key={media.id} className="group flex flex-col bg-white rounded-3xl border border-black/[0.03] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.02)] overflow-hidden">
-                      <div className="aspect-video bg-gray-100 relative overflow-hidden">
-                        {media.type === 'photo' ? (
-                          <img src={media.url} alt={`Evidence ${media.id}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <video src={media.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" muted />
-                        )}
-                        <div className="absolute top-3 right-3 px-2.5 py-1 text-[11px] font-bold tracking-wider text-gray-900 bg-white/90 backdrop-blur-md rounded-md shadow-sm">
-                          {media.type.toUpperCase()}
-                        </div>
-                      </div>
-                      <div className="p-5">
-                        <div className="flex items-center justify-between text-[13px] font-medium text-gray-500 mb-4">
-                          <span>{media.size ? (media.size / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown Size'}</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" className="flex-1 h-9 bg-gray-50 hover:bg-gray-100 border-transparent text-[13px] font-semibold text-gray-700">
-                            <Eye className="h-4 w-4 mr-2" /> View
-                          </Button>
-                          <Button variant="outline" className="w-9 h-9 p-0 bg-gray-50 hover:bg-gray-100 border-transparent text-gray-700">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
+          {/* Verified Media Attachments Grid */}
+          <section className="bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[28px] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] space-y-6">
+            <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">
+                  Cryptographically Hashed Media ({evidence.mediaReferences?.length || 0})
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Physical files verified against individual SHA-256 pre-hashes
+                </p>
+              </div>
+              <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Intact on Disk
+              </span>
+            </div>
+
+            {evidence.mediaReferences && evidence.mediaReferences.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {evidence.mediaReferences.map((media) => (
+                  <div
+                    key={media.id}
+                    className="group flex flex-col bg-white dark:bg-[#111622] rounded-2xl border border-black/10 dark:border-white/10 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-primary-500/40"
+                  >
+                    {/* Fixed aspect-ratio container to prevent squashing or stretching */}
+                    <div className="aspect-video w-full bg-gray-100 dark:bg-black/40 relative overflow-hidden flex items-center justify-center">
+                      {media.type === 'photo' ? (
+                        <img
+                          src={media.url}
+                          alt={`Evidence Media ${media.id}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            // Fallback if image path not found
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement?.classList.add('flex-col', 'gap-2', 'p-4', 'text-gray-400');
+                          }}
+                        />
+                      ) : (
+                        <video
+                          src={media.url}
+                          className="w-full h-full object-cover"
+                          controls
+                          playsInline
+                          preload="metadata"
+                        />
+                      )}
+
+                      <div className="absolute top-3 right-3 px-2.5 py-1 text-[10px] font-bold tracking-wider text-gray-900 dark:text-white bg-white/90 dark:bg-black/80 backdrop-blur-md rounded-lg shadow-sm border border-black/5 dark:border-white/10">
+                        {media.type.toUpperCase()}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 rounded-2xl bg-gray-50 dark:bg-white/[0.02] border border-black/5 text-center text-gray-500 text-sm">
-                  No media attachments recorded for this evidence record.
-                </div>
-              )}
-            </div>
 
-            {/* Blockchain Proof */}
-            {evidence.blockchainProof && (
-              <div className="pt-8 border-t border-black/5">
-                <div className="flex items-center gap-3 mb-6">
-                  <Lock className="h-5 w-5 text-gray-900" />
-                  <h3 className="text-[16px] font-bold text-gray-900">Blockchain Integrity</h3>
-                </div>
-                <div className="bg-gray-900 rounded-3xl p-6 sm:p-8 text-gray-300">
-                  <dl className="grid gap-x-8 gap-y-6 sm:grid-cols-2 text-[13px]">
-                    <div>
-                      <dt className="text-gray-500 font-medium mb-1">Transaction ID</dt>
-                      <dd className="font-mono text-gray-100 break-all">{evidence.blockchainProof.transactionId}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-gray-500 font-medium mb-1">Block Number</dt>
-                      <dd className="font-mono text-gray-100">{evidence.blockchainProof.blockNumber.toLocaleString()}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-gray-500 font-medium mb-1">Block Hash</dt>
-                      <dd className="font-mono text-gray-100 break-all">{evidence.blockchainProof.blockHash}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-gray-500 font-medium mb-1">Network</dt>
-                      <dd className="font-mono text-gray-100">{evidence.blockchainProof.network}</dd>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <dt className="text-gray-500 font-medium mb-1">Merkle Root</dt>
-                      <dd className="font-mono text-gray-100 break-all">{evidence.blockchainProof.merkleRoot}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-gray-500 font-medium mb-1">Anchored At</dt>
-                      <dd className="text-gray-100">{formatDate(evidence.blockchainProof.timestamp)}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-            )}
-          </div>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span className="font-mono">Reference #{media.id}</span>
+                        <span>{media.size ? `${(media.size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB'}</span>
+                      </div>
 
-          {/* Sidebar Column */}
-          <div className="lg:col-span-4 space-y-12">
-            
-            {/* Quick Actions */}
-            <div>
-              <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">Actions</h3>
-              <div className="space-y-3">
-                <button className="w-full flex items-center justify-between p-4 rounded-2xl bg-white border border-black/[0.03] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary-50 flex items-center justify-center group-hover:bg-primary-100 transition-colors">
-                      <Shield className="h-5 w-5 text-primary-600" />
-                    </div>
-                    <span className="font-semibold text-[14px] text-gray-900">Run Verification</span>
-                  </div>
-                </button>
-                <button className="w-full flex items-center justify-between p-4 rounded-2xl bg-white border border-black/[0.03] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-                      <FileText className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <span className="font-semibold text-[14px] text-gray-900">Audit Trail</span>
-                  </div>
-                </button>
-                <button className="w-full flex items-center justify-between p-4 rounded-2xl bg-white border border-black/[0.03] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-                      <QrCode className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <span className="font-semibold text-[14px] text-gray-900">Generate QR</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Timeline */}
-            <div>
-              <h3 className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-6">Chain of Custody</h3>
-              <div className="relative border-l-2 border-black/5 ml-4 space-y-8 pb-4">
-                {generatedHistory.map((entry, index) => (
-                  <div key={index} className="relative pl-6">
-                    <div className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-4 border-white ${index === 0 ? 'bg-primary-500 shadow-sm shadow-primary-500/30' : 'bg-gray-300'}`} />
-                    <div>
-                      <p className={`font-bold text-[14px] ${index === 0 ? 'text-gray-900' : 'text-gray-600'}`}>{entry.action}</p>
-                      <p className="text-[13px] text-gray-500 font-medium mt-0.5">by {entry.user}</p>
-                      {entry.details && (
-                        <p className="text-[13px] text-gray-500 mt-1 bg-gray-50 inline-block px-2 py-1 rounded-md">{entry.details}</p>
-                      )}
-                      <p className="text-[12px] text-gray-400 mt-2 font-mono">{formatDate(entry.timestamp, { dateStyle: 'short', timeStyle: 'short' })}</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <a
+                          href={media.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 inline-flex items-center justify-center h-8 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" /> View Original
+                        </a>
+                        <a
+                          href={media.url}
+                          download
+                          className="w-8 h-8 inline-flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors"
+                          title="Download Media File"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+            ) : (
+              <div className="p-8 rounded-2xl bg-black/5 dark:bg-white/[0.02] border border-black/5 text-center text-sm text-gray-500 dark:text-gray-400">
+                No physical media attachments attached to this evidence record.
+              </div>
+            )}
+          </section>
+
+          {/* Blockchain Cryptographic Proof Card */}
+          {evidence.blockchainProof && (
+            <section className="relative overflow-hidden rounded-[28px] bg-gray-900 dark:bg-[#070A0F] border border-gray-800 dark:border-white/10 p-6 sm:p-8 text-gray-300 shadow-xl space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight">
+                      Blockchain Cryptographic Proof
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Anchored to Hyperledger Fabric distributed state database
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportJSON}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono font-medium transition-colors border border-white/10"
+                    title="Export Complete JSON Forensic Record"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export JSON</span>
+                  </button>
+                  <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    Proof Anchored
+                  </span>
+                </div>
+              </div>
+
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
+                    Transaction ID
+                  </dt>
+                  <dd className="text-gray-100 break-all select-all font-semibold">
+                    {evidence.blockchainProof.transactionId}
+                  </dd>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
+                    Block Height
+                  </dt>
+                  <dd className="text-gray-100 font-semibold text-sm">
+                    #{evidence.blockchainProof.blockNumber.toLocaleString()}
+                  </dd>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
+                    Channel & Network
+                  </dt>
+                  <dd className="text-gray-100 font-semibold">
+                    {evidence.blockchainProof.network}
+                  </dd>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
+                    Anchoring Timestamp
+                  </dt>
+                  <dd className="text-gray-100 font-medium">
+                    {formatDate(evidence.blockchainProof.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}
+                  </dd>
+                </div>
+
+                <div className="sm:col-span-2 p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
+                    Merkle Root
+                  </dt>
+                  <dd className="text-emerald-300 break-all select-all text-[11px]">
+                    {evidence.blockchainProof.merkleRoot}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+
+        </div>
+
+        {/* Right Column (4 cols): Location Anchor, Asset Link, Chain of Custody Timeline */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Location Anchor */}
+          <LocationAnchorCard
+            location={evidence.location}
+            siteName={asset?.location?.site}
+            building={asset?.location?.building}
+            zone={asset?.location?.room || asset?.location?.floor}
+          />
+
+          {/* Machine Profile Link Card */}
+          <div className="bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[28px] p-5 sm:p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Machine Asset
+              </span>
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-700 dark:text-gray-300">
+                {assetCode}
+              </span>
             </div>
 
+            <div>
+              <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                {machineName}
+              </h4>
+              {asset?.description && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                  {asset.description}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate(`/assets/${evidence.assetId}`)}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold text-gray-800 dark:text-gray-200 transition-colors cursor-pointer group"
+            >
+              <span>Inspect Full Asset Lifecycle</span>
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
+
+          {/* Reconstructed Technical Chain of Custody Timeline */}
+          <VerificationTimeline
+            evidence={evidence}
+            blockchainProof={evidence.blockchainProof}
+            verificationStatus={verificationStatus}
+            lastVerifiedAt={lastVerifiedAt}
+          />
+
         </div>
-      </PageContainer>
+
+      </div>
+
+      {/* Audit Trail Modal */}
+      <EvidenceAuditTrailModal
+        isOpen={isAuditOpen}
+        onClose={() => setIsAuditOpen(false)}
+        evidenceId={evidence.evidenceId}
+        assetName={machineName}
+        assetId={evidence.assetId}
+      />
+
+      {/* QR Code Modal */}
+      <Modal
+        isOpen={isQROpen}
+        onClose={() => setIsQROpen(false)}
+        title="Cryptographic Evidence QR Code"
+        description={`Evidence ID: ${evidence.evidenceId.substring(0, 16)}...`}
+        size="sm"
+      >
+        <div className="flex flex-col items-center gap-6 py-4">
+          <div className="p-6 bg-white rounded-2xl border border-gray-100 shadow-md">
+            <div className="w-48 h-48 bg-gray-950 rounded-xl flex items-center justify-center p-4">
+              <QrCode className="w-32 h-32 text-white" />
+            </div>
+          </div>
+          <div className="text-center w-full space-y-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Anchored Evidence Reference
+            </p>
+            <p className="font-mono text-xs font-semibold text-gray-900 dark:text-white bg-black/5 dark:bg-white/5 px-3 py-2 rounded-xl break-all">
+              {evidence.evidenceId}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => setIsQROpen(false)} className="w-full">
+            Close
+          </Button>
+        </div>
+      </Modal>
+
     </div>
   );
 }

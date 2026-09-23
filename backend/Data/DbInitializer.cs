@@ -10,6 +10,12 @@ public static class DbInitializer
     {
         try
         {
+            if (!await context.Database.CanConnectAsync())
+            {
+                logger.LogError("[IEC Database] FATAL: Cannot connect to authoritative database 'iec_db' on localhost:5433. Startup aborted to prevent creating a fresh empty database.");
+                throw new InvalidOperationException("Authoritative database 'iec_db' on localhost:5433 is unreachable. Startup aborted.");
+            }
+
             await context.Database.MigrateAsync();
 
             // 1. Seed Roles

@@ -50,7 +50,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         lastResponse: lastResponseText
       }));
     }
-  }, [user, location.pathname]);
+  }, [user?.id, user?.role, user?.firstName, location.pathname]);
 
   useEffect(() => {
     updateSuggestions();
@@ -90,8 +90,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         currentPath: location.pathname
       });
 
-      // 2. Minimum visual delay for choreography (3 seconds)
-      await new Promise(r => setTimeout(r, 3000));
+      // 2. Realistic micro-delay for smooth UI choreography (350ms)
+      await new Promise(r => setTimeout(r, 350));
 
       // 3. Update emotion
       setEmotion(response.emotion);
@@ -115,10 +115,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       
       setTimeout(() => {
         setEmotion(prev => (prev === 'error' ? 'error' : 'idle'));
-      }, 3000);
+      }, 2000);
 
     } catch (error) {
-      await new Promise(r => setTimeout(r, 3000));
       setEmotion('error');
       addMessage({
         role: 'assistant',

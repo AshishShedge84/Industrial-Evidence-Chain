@@ -1,13 +1,25 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
 import type { ApiResponse, ApiError } from '@type-defs/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+function getApiBaseUrl(): string {
+  // Always use relative '/api' in browser so all requests (localhost, 127.0.0.1, LAN IP, remote)
+  // are routed through Vite's reverse proxy seamlessly without CORS, mixed-content, or localhost-binding issues.
+  if (typeof window !== 'undefined') {
+    return '/api';
+  }
+
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true';
 
 class ApiClient {
   private client: AxiosInstance;
   private authToken: string | null = null;
   private refreshToken: string | null = null;
+
+  private refreshPromise: Promise<void> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -48,7 +60,14 @@ class ApiClient {
             return this.client(originalRequest);
           } catch {
             this.clearTokens();
-            window.location.href = '/login';
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user');
+              if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+              }
+            }
             return Promise.reject(error);
           }
         }
@@ -84,6 +103,10 @@ class ApiClient {
   clearTokens(): void {
     this.authToken = null;
     this.refreshToken = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    }
   }
 
   getAuthToken(): string | null {
@@ -93,16 +116,33 @@ class ApiClient {
   async refreshAccessToken(): Promise<void> {
     if (!this.refreshToken) throw new Error('No refresh token available');
 
-    const response = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-      `${API_BASE_URL}/auth/refresh`,
-      { refreshToken: this.refreshToken }
-    );
-
-    if (response.data.success && response.data.data) {
-      this.setTokens(response.data.data.accessToken, response.data.data.refreshToken);
-    } else {
-      throw new Error('Failed to refresh token');
+    if (this.refreshPromise) {
+      return this.refreshPromise;
     }
+
+    this.refreshPromise = (async () => {
+      try {
+        const response = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken: this.refreshToken }
+        );
+
+        if (response.data.success && response.data.data) {
+          const { accessToken, refreshToken } = response.data.data;
+          this.setTokens(accessToken, refreshToken);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('refresh_token', refreshToken);
+          }
+        } else {
+          throw new Error('Failed to refresh token');
+        }
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {

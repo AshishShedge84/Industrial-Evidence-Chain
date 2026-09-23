@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authService } from '@services/auth/authService';
 import { apiClient } from '@services/api/apiClient';
 import type { User, AuthState, LoginRequest, RegisterRequest } from '@type-defs/auth';
@@ -43,16 +43,7 @@ function normalizeUser(rawUser: any): User {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    accessToken: null,
-    refreshToken: null,
-    isAuthenticated: false,
-    isLoading: true,
-    error: null,
-  });
-
-  const loadStoredAuth = useCallback(async () => {
+  const [state, setState] = useState<AuthState>(() => {
     try {
       const storedToken = localStorage.getItem('access_token');
       const storedRefreshToken = localStorage.getItem('refresh_token');
@@ -61,27 +52,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedToken && storedRefreshToken && storedUser) {
         apiClient.setTokens(storedToken, storedRefreshToken);
         const user = normalizeUser(JSON.parse(storedUser));
-        setState({
+        return {
           user,
           accessToken: storedToken,
           refreshToken: storedRefreshToken,
           isAuthenticated: true,
           isLoading: false,
           error: null,
-        });
-      } else {
-        setState((prev) => ({ ...prev, isLoading: false }));
+        };
       }
-    } catch {
-      setState((prev) => ({ ...prev, isLoading: false }));
-    }
-  }, []);
+    } catch {}
+    return {
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+    };
+  });
 
   useEffect(() => {
-    loadStoredAuth();
-  }, [loadStoredAuth]);
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user' || e.key === 'access_token') {
+        try {
+          const storedToken = localStorage.getItem('access_token');
+          const storedRefreshToken = localStorage.getItem('refresh_token');
+          const storedUser = localStorage.getItem('user');
 
-  const login = async (credentials: LoginRequest) => {
+          if (storedToken && storedRefreshToken && storedUser) {
+            apiClient.setTokens(storedToken, storedRefreshToken);
+            const user = normalizeUser(JSON.parse(storedUser));
+            setState({
+              user,
+              accessToken: storedToken,
+              refreshToken: storedRefreshToken,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+          } else {
+            setState({
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              isAuthenticated: false,
+              isLoading: false,
+              error: null,
+            });
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const login = useCallback(async (credentials: LoginRequest) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -124,9 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }));
       throw error;
     }
-  };
+  }, []);
 
-  const register = async (credentials: RegisterRequest) => {
+  const register = useCallback(async (credentials: RegisterRequest) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const response = await authService.register(credentials);
@@ -147,9 +175,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }));
       throw error;
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
@@ -169,26 +197,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: null,
       });
     }
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await authService.getCurrentUser();
       if (response.success && response.data) {
-        const user = response.data;
+        const user = normalizeUser(response.data);
         localStorage.setItem('user', JSON.stringify(user));
-        setState((prev) => ({ ...prev, user }));
+        setState((prev) => {
+          if (JSON.stringify(prev.user) === JSON.stringify(user)) return prev;
+          return { ...prev, user };
+        });
       }
     } catch {
       // Ignore refresh errors
     }
-  };
+  }, []);
 
-  const hasPermission = (permission: string): boolean => {
+  const hasPermission = useCallback((permission: string): boolean => {
     if (!state.user) return false;
     const permissions: Record<string, string[]> = {
       Technician: ['assets:read', 'evidence:create', 'evidence:read:own', 'qr:scan'],
-      Manager: ['assets:read', 'assets:write', 'evidence:read:all', 'evidence:approve', 'qr:scan', 'qr:generate'],
+      Manager: ['assets:read', 'assets:write', 'evidence:read:all', 'evidence:verify', 'evidence:approve', 'qr:scan', 'qr:generate'],
       Auditor: ['assets:read', 'evidence:read:all', 'evidence:verify', 'audit:read', 'audit:export', 'qr:scan'],
       Admin: ['assets:read', 'assets:write', 'assets:delete', 'evidence:read:all', 'evidence:verify', 'evidence:delete', 'users:read', 'users:write', 'users:delete', 'audit:read', 'audit:export', 'qr:scan', 'qr:generate', 'system:configure'],
     };
@@ -196,29 +227,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (k) => k.toLowerCase() === state.user!.role.toLowerCase()
     );
     return (matchedKey ? permissions[matchedKey] : undefined)?.includes(permission) ?? false;
-  };
+  }, [state.user]);
 
-  const hasAnyPermission = (permissions: string[]): boolean => {
+  const hasAnyPermission = useCallback((permissions: string[]): boolean => {
     return permissions.some((p) => hasPermission(p));
-  };
+  }, [hasPermission]);
 
-  const hasAllPermissions = (permissions: string[]): boolean => {
+  const hasAllPermissions = useCallback((permissions: string[]): boolean => {
     return permissions.every((p) => hasPermission(p));
-  };
+  }, [hasPermission]);
+
+  const contextValue = useMemo(() => ({
+    ...state,
+    login,
+    register,
+    logout,
+    refreshUser,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+  }), [state, login, register, logout, refreshUser, hasPermission, hasAnyPermission, hasAllPermissions]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        ...state,
-        login,
-        register,
-        logout,
-        refreshUser,
-        hasPermission,
-        hasAnyPermission,
-        hasAllPermissions,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

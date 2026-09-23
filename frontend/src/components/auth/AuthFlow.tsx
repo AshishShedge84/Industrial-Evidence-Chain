@@ -85,15 +85,13 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.4 }}
-      className="w-full max-w-[420px] mx-auto z-10"
-      layout
+      className="w-full max-w-[360px] xs:max-w-[380px] sm:max-w-[420px] mx-auto z-10"
     >
-      <motion.div
-        layout
-        className="bg-white/70 dark:bg-[#1C1C1E]/70 backdrop-blur-3xl rounded-[28px] p-8 shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/40 dark:border-white/10 relative overflow-hidden"
+      <div
+        className="bg-white/75 dark:bg-[#1C1C1E]/75 backdrop-blur-3xl rounded-3xl sm:rounded-[28px] p-5 sm:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/40 dark:border-white/10 relative overflow-visible h-auto"
       >
         {/* Subtle internal light effect */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-[28px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-3xl sm:rounded-[28px]" />
 
         {/* Back Button */}
         <button
@@ -102,28 +100,29 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
             else if (mode === 'register') setMode('email');
             else onBack();
           }}
-          className="absolute top-6 left-6 p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors z-20"
+          className="absolute top-3.5 left-3.5 sm:top-6 sm:left-6 p-1.5 sm:p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors z-20"
+          aria-label="Go back"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
 
         {/* 3D IEC Logo + Soft Luminous Bubbles */}
-        <motion.div layout className="flex justify-center mb-8 mt-2 relative">
-          <div className="relative w-32 h-32 flex items-center justify-center">
+        <div className="flex justify-center mb-2.5 sm:mb-6 mt-0.5 sm:mt-2 relative">
+          <div className="relative w-14 h-14 sm:w-28 sm:h-28 flex items-center justify-center">
             {/* Soft Luminous Bubbles */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-blue-400/10 dark:bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-400/10 dark:bg-indigo-500/15 rounded-full blur-xl translate-x-2 translate-y-2 pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 sm:w-40 sm:h-40 bg-blue-400/15 dark:bg-blue-500/20 rounded-full blur-md sm:blur-xl pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 sm:w-32 sm:h-32 bg-indigo-400/15 dark:bg-indigo-500/20 rounded-full blur-md translate-x-0.5 translate-y-0.5 pointer-events-none" />
 
             {/* Main 3D Logo */}
-            <img src="/logo-3d.png" alt="IEC" className="relative z-10 h-24 w-24 sm:h-28 sm:w-28 object-contain drop-shadow-2xl" />
+            <img src="/logo-3d.png" alt="IEC" className="relative z-10 h-10 w-10 sm:h-24 sm:w-24 object-contain drop-shadow-xl" />
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div layout className="text-center mb-8 relative z-10">
-          <h2 className="text-[22px] font-medium tracking-tight text-gray-900 dark:text-white">
+        <div className="text-center mb-3.5 sm:mb-8 relative z-10">
+          <h2 className="text-[17px] sm:text-[22px] font-semibold sm:font-medium tracking-tight text-gray-900 dark:text-white leading-snug px-1">
             {mode === 'register' && !pendingApproval ? 'Create Account' : 'Sign in to Industrial Evidence Chain'}
           </h2>
-        </motion.div>
+        </div>
 
         {error && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 relative z-10">
@@ -152,12 +151,11 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
         ) : (
           <div className="relative z-10">
             {(mode === 'email' || mode === 'password') && (
-              <motion.form
-                layout
+              <form
                 onSubmit={mode === 'email' ? handleEmailSubmit : handlePasswordSubmit}
                 className="space-y-4"
               >
-                <motion.div layout className="space-y-1">
+                <div className="space-y-1">
                   <input
                     id="email"
                     type="email"
@@ -167,12 +165,12 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                     required
                     autoFocus={mode === 'email'}
                     readOnly={mode === 'password'}
-                    className={`w-full h-[52px] px-4 rounded-xl bg-white/50 dark:bg-black/20 border text-[15px] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none transition-all ${mode === 'password'
+                    className={`w-full h-[44px] sm:h-[52px] px-3.5 sm:px-4 rounded-xl bg-white/50 dark:bg-black/20 border text-sm sm:text-[15px] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none transition-all ${mode === 'password'
                       ? 'border-transparent opacity-60'
                       : 'border-black/10 dark:border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:bg-white/80 dark:hover:bg-black/30'
                       }`}
                   />
-                </motion.div>
+                </div>
 
                 <AnimatePresence mode="popLayout">
                   {mode === 'password' && (
@@ -183,7 +181,7 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                       className="space-y-4"
                     >
-                      <div className="relative pt-2">
+                      <div className="relative pt-1 sm:pt-2">
                         <input
                           id="password"
                           type={showPassword ? 'text' : 'password'}
@@ -193,14 +191,14 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                           required
                           autoFocus
                           disabled={isLoading}
-                          className="w-full h-[52px] pl-4 pr-10 rounded-xl bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 text-[15px] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all hover:bg-white/80 dark:hover:bg-black/30"
+                          className="w-full h-[44px] sm:h-[52px] pl-3.5 sm:pl-4 pr-10 rounded-xl bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 text-sm sm:text-[15px] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all hover:bg-white/80 dark:hover:bg-black/30"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-[55%] -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         >
-                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          {showPassword ? <EyeOff className="h-4 w-4 sm:h-5 sm:w-5" /> : <Eye className="h-4 w-4 sm:h-5 sm:w-5" />}
                         </button>
                       </div>
                     </motion.div>
@@ -213,31 +211,31 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex flex-col gap-3 py-2"
+                      className="flex flex-col gap-2 py-1 sm:py-2"
                     >
-                      <button type="button" className="text-[13px] text-blue-600 dark:text-blue-400 font-medium text-left hover:underline self-start">
+                      <button type="button" className="text-xs sm:text-[13px] text-blue-600 dark:text-blue-400 font-medium text-left hover:underline self-start">
                         Forgot your email or ID?
                       </button>
-                      <button type="button" onClick={() => setMode('register')} className="text-[13px] text-blue-600 dark:text-blue-400 font-medium text-left hover:underline self-start">
+                      <button type="button" onClick={() => setMode('register')} className="text-xs sm:text-[13px] text-blue-600 dark:text-blue-400 font-medium text-left hover:underline self-start">
                         Create a new IEC account
                       </button>
-                      <p className="text-[12px] text-gray-500 dark:text-gray-400 leading-relaxed mt-2">
+                      <p className="text-[11px] sm:text-[12px] text-gray-500 dark:text-gray-400 leading-relaxed mt-0.5 sm:mt-2">
                         Your account protects access to verified industrial evidence and operational records.
                       </p>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                <motion.div layout className="pt-4 flex justify-center w-full">
+                <div className="pt-2 sm:pt-4 flex justify-center w-full">
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-auto min-w-[140px] px-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100 disabled:opacity-50 text-[15px] font-medium h-[46px] rounded-full transition-all shadow-sm flex items-center justify-center active:scale-[0.98]"
+                    className="w-full sm:w-auto min-w-[140px] px-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100 disabled:opacity-50 text-sm sm:text-[15px] font-medium h-[42px] sm:h-[46px] rounded-full transition-all shadow-sm flex items-center justify-center active:scale-[0.98]"
                   >
                     {mode === 'email' ? 'Continue' : (isLoading ? 'Signing In...' : 'Sign In')}
                   </button>
-                </motion.div>
-              </motion.form>
+                </div>
+              </form>
             )}
 
             {mode === 'register' && (
@@ -308,11 +306,11 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                   </p>
                 </div>
 
-                <div className="flex justify-center">
+                <div className="flex justify-center w-full">
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-auto min-w-[140px] px-6 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 disabled:opacity-50 text-[14px] font-medium h-[40px] rounded-full transition-opacity flex items-center justify-center"
+                    className="w-full sm:w-auto min-w-[140px] px-6 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 disabled:opacity-50 text-[14px] font-medium h-[44px] sm:h-[46px] rounded-full transition-opacity flex items-center justify-center active:scale-[0.98]"
                   >
                     {isLoading ? 'Requesting...' : 'Request Access'}
                   </button>
@@ -321,7 +319,7 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </motion.div>
   );
 }

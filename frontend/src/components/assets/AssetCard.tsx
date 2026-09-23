@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 import { forwardRef } from 'react';
-import { Badge } from '@components/ui';
+import { Badge, SecurityIconBox } from '@components/ui';
 import { Box, MapPin, Tag, MoreVertical, Edit, Trash2, ArrowRight } from 'lucide-react';
 import type { Asset, AssetStatus } from '@type-defs/asset';
 
@@ -26,18 +26,20 @@ export const AssetCard = forwardRef<HTMLDivElement, AssetCardProps>(
     return (
       <div
         ref={ref}
-        className={`group relative bg-white/80 backdrop-blur-xl rounded-[28px] p-6 lg:p-7 transition-all duration-300 shadow-sm border border-black/5 hover:shadow-md hover:border-black/10 flex flex-col h-full ${className}`}
+        className={`group relative bg-white/80 dark:bg-[#0F1218]/80 backdrop-blur-xl rounded-[28px] p-6 lg:p-7 transition-all duration-300 shadow-sm border border-black/5 dark:border-white/10 hover:shadow-md hover:border-black/10 dark:hover:border-white/20 flex flex-col h-full ${className}`}
         {...props}
       >
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors shadow-inner">
-              <Box className="h-5 w-5" />
-            </div>
+            <SecurityIconBox
+              icon={Box}
+              variant="primary"
+              size="md"
+            />
             <div>
-              <span className="text-[12px] font-medium text-gray-500 tracking-wide">{asset.category}</span>
+              <span className="text-[12px] font-medium text-gray-500 dark:text-gray-400 tracking-wide">{asset.category}</span>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[13px] font-mono text-gray-600 font-medium bg-gray-100/80 px-2 py-0.5 rounded-md">{asset.assetTag}</span>
+                <span className="text-[13px] font-mono text-gray-600 dark:text-gray-300 font-medium bg-gray-100/80 dark:bg-white/10 px-2 py-0.5 rounded-md border border-black/5 dark:border-white/5">{asset.assetTag}</span>
               </div>
             </div>
           </div>
@@ -47,7 +49,7 @@ export const AssetCard = forwardRef<HTMLDivElement, AssetCardProps>(
         </div>
 
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 tracking-tight leading-tight mb-2 group-hover:text-primary-700 transition-colors">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight leading-tight mb-2 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">
             {asset.name}
           </h3>
           {asset.description && (

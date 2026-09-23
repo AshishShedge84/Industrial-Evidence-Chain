@@ -27,9 +27,12 @@ public class EvidenceRecord
     public AnchorStatus AnchorStatus { get; set; } = AnchorStatus.Pending;
     public DateTime CreatedAt { get; set; }
 
+    public Guid? AssignedManagerId { get; set; }
+
     // Navigation properties
     public Asset Asset { get; set; } = null!;
     public User User { get; set; } = null!;
+    public User? AssignedManager { get; set; }
     public ICollection<EvidenceMedia> MediaFiles { get; set; } = new List<EvidenceMedia>();
     public BlockchainProof? BlockchainProof { get; set; }
 }

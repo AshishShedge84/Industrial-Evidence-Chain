@@ -6,3 +6,26 @@ APP DEV/
 # Build artifacts and large archives
 frontend.zip
 frontend.log
+
+# Permanent local PostgreSQL data directory
+db_data/
+
+# Runtime uploads (user-uploaded media — not source code)
+backend/uploads/
+Uploaded Media/
+
+# Logs
+logs/
+
+# SSL/TLS certificates (local dev certs)
+frontend/certs/
+
+# macOS metadata
+.DS_Store
+
+# Database backups (authoritative backup kept locally only)
+database/*.sql
+
+# Local network access notes
+LAN_ACCESS.md
+

@@ -20,22 +20,14 @@ export function AppLayout() {
       <MobileNav onClose={() => setMobileMenuOpen(false)} />
 
       <main
-        className={`transition-all duration-300 pt-[72px] ${
+        className={`transition-all duration-300 pt-[68px] sm:pt-[72px] ${
           sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'
         }`}
       >
-        <div className="p-4 md:p-8 lg:p-10 max-w-[1400px] mx-auto">
+        <div className="p-3 sm:p-4 md:p-8 lg:p-10 max-w-[1400px] mx-auto">
           <Outlet key={location.pathname} />
         </div>
       </main>
-
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden transition-opacity"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
 
       <AssistantLauncher />
       <AssistantWindow />

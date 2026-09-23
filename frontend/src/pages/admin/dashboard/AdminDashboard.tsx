@@ -99,19 +99,19 @@ export function AdminDashboard({ user }: { user: User }) {
   ];
 
   return (
-    <div className="space-y-12 pb-12">
+    <div className="space-y-6 sm:space-y-10 pb-8 sm:pb-12">
       <PageContainer
         title="Admin Portal"
         description={`Welcome back, ${user.firstName}. System administration and user management.`}
         actions={<DashboardClock />}
       >
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-12">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6 mb-6 sm:mb-10">
           {statCards.map((stat) => (
             <StatCard key={stat.title} {...stat} />
           ))}
         </div>
 
-        <div className="grid gap-12 lg:grid-cols-12">
+        <div className="grid gap-6 sm:gap-8 lg:gap-12 lg:grid-cols-12">
           <div className="lg:col-span-8">
             <RecentActivity
               activities={recentActivities} 

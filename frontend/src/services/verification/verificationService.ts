@@ -4,6 +4,7 @@ import type { ApiResponse } from '@type-defs/api';
 
 export interface VerificationService {
   verifyEvidence(evidenceId: string): Promise<ApiResponse<VerificationResult>>;
+  getEvidenceVerification(evidenceId: string): Promise<ApiResponse<VerificationResult>>;
   batchVerify(request: BatchVerificationRequest): Promise<ApiResponse<BatchVerificationResponse>>;
   getVerificationStatus(evidenceId: string): Promise<ApiResponse<VerificationStatus>>;
   getBlockchainProof(evidenceId: string): Promise<ApiResponse<BlockchainProof>>;
@@ -13,6 +14,10 @@ export interface VerificationService {
 class VerificationServiceImpl implements VerificationService {
   async verifyEvidence(evidenceId: string): Promise<ApiResponse<VerificationResult>> {
     return apiClient.post<VerificationResult>(`/evidence/${evidenceId}/verify`);
+  }
+
+  async getEvidenceVerification(evidenceId: string): Promise<ApiResponse<VerificationResult>> {
+    return apiClient.get<VerificationResult>(`/evidence/${evidenceId}/verification`);
   }
 
   async batchVerify(request: BatchVerificationRequest): Promise<ApiResponse<BatchVerificationResponse>> {

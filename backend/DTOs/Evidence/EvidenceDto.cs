@@ -18,6 +18,17 @@ public class EvidenceDto
     public IList<string> MediaHashes { get; set; } = new List<string>();
     public AnchorStatus AnchorStatus { get; set; } = AnchorStatus.Pending;
     public string? EvidenceHash { get; set; }
+    public string? AssetName { get; set; }
+    public string? AssetCode { get; set; }
+    public string? UserName { get; set; }
+    public string? UserRole { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public string VerificationStatus { get; set; } = "PENDING_VERIFICATION";
+    public DateTime? VerifiedAt { get; set; }
+    public string? VerifiedBy { get; set; }
+    public Guid? AssignedManagerId { get; set; }
+    public string? AssignedManagerName { get; set; }
+    public string? TransactionId { get; set; }
+    public DateTime? AnchoredAt { get; set; }
 }

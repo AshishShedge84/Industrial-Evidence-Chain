@@ -26,17 +26,30 @@ export function AssistantWindow() {
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 20 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 lg:bottom-8 lg:right-8 z-50 w-[calc(100vw-2rem)] sm:w-[380px] h-[600px] max-h-[calc(100dvh-5rem)] glass-panel-strong rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        >
-          <AssistantHeader />
-          <AssistantMessages />
-          <AssistantInput />
-        </motion.div>
+        <>
+          {/* Mobile backdrop to dismiss assistant on tap outside */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setIsOpen(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 sm:hidden"
+            aria-hidden="true"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 20 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="fixed inset-x-2 bottom-2 sm:inset-auto sm:bottom-6 sm:right-6 lg:bottom-8 lg:right-8 z-50 w-auto sm:w-[380px] h-[82vh] sm:h-[600px] max-h-[calc(100dvh-1rem)] glass-panel-strong rounded-[28px] sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          >
+            <AssistantHeader />
+            <AssistantMessages />
+            <AssistantInput />
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

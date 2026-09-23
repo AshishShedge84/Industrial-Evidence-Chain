@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { User } from '@type-defs/auth';
 import { useAuth } from '@hooks/useAuth';
 import { useAssistant } from '@hooks/useAssistant';
 import { Button } from '@components/ui';
 import { UserAvatar } from '@components/ui/UserAvatar';
 import { notificationService } from '@services/notification/notificationService';
+import { apiClient } from '@services/api/apiClient';
 
 interface MessageComposerProps {
   initialRecipientId?: string;
@@ -12,15 +13,43 @@ interface MessageComposerProps {
   onComplete: () => void;
 }
 
+const DEFAULT_TEAM_USERS: User[] = [
+  { id: 'usr-mgr-1', firstName: 'Sarah', lastName: 'Connor', email: 'manager@iec.app', role: 'Manager' } as User,
+  { id: 'usr-tech-1', firstName: 'Bablu', lastName: 'Electrician', email: 'bablu@iec.app', role: 'Technician' } as User,
+  { id: 'usr-aud-1', firstName: 'Marcus', lastName: 'Vance', email: 'auditor@iec.app', role: 'Auditor' } as User,
+  { id: 'usr-adm-1', firstName: 'Dev', lastName: 'Admin', email: 'admin@iec.app', role: 'Admin' } as User,
+];
+
 export function MessageComposer({ initialRecipientId, initialMessage, onComplete }: MessageComposerProps) {
   const { user: currentUser } = useAuth();
   const { addMessage } = useAssistant();
-  const users = useMemo(() => [] as User[], [currentUser?.id]);
+  const [users, setUsers] = useState<User[]>(DEFAULT_TEAM_USERS);
   
   const [recipientId, setRecipientId] = useState<string>(initialRecipientId || '');
   const [message, setMessage] = useState(initialMessage || '');
   const [isSending, setIsSending] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiClient.get<{ items?: any[] }>('/admin/users')
+      .then(res => {
+        if (isMounted && res.success && res.data?.items?.length) {
+          const mapped: User[] = res.data.items.map((u: any) => ({
+            id: u.userId || u.id,
+            firstName: u.fullName ? u.fullName.split(' ')[0] : (u.username || 'User'),
+            lastName: u.fullName ? u.fullName.split(' ').slice(1).join(' ') : '',
+            email: u.email,
+            role: (u.roles?.[0] || u.role || 'Technician') as any,
+          } as User));
+          setUsers(mapped);
+        }
+      })
+      .catch(() => {
+        // Keep default team users
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   const selectedUser = useMemo(() => users.find(u => u.id === recipientId), [users, recipientId]);
 
@@ -29,21 +58,23 @@ export function MessageComposer({ initialRecipientId, initialMessage, onComplete
     
     setIsSending(true);
     
-    setTimeout(() => {
-      notificationService.sendNotification({
-        recipientId,
-        senderId: currentUser.id,
-        senderName: `${currentUser.firstName} ${currentUser.lastName}`,
-        title: 'New Message',
-        message: message.trim(),
-        type: 'message'
-      });
-      
-      addMessage({ role: 'system', text: `Message sent to ${selectedUser?.firstName} successfully.`, emotion: 'success' });
-      setIsSending(false);
-      setIsComplete(true);
-      if (onComplete) onComplete();
-    }, 800);
+    notificationService.sendNotification({
+      recipientId,
+      senderId: currentUser.id,
+      senderName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+      title: `Team Communication (${currentUser.role})`,
+      message: message.trim(),
+      type: 'message'
+    });
+    
+    addMessage({ 
+      role: 'system', 
+      text: `Message delivered to ${selectedUser ? `${selectedUser.firstName} (${selectedUser.role})` : 'team member'} via Notification Center.`, 
+      emotion: 'success' 
+    });
+    setIsSending(false);
+    setIsComplete(true);
+    if (onComplete) onComplete();
   };
 
   const handleCancel = () => {

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const MEMOJI_FRAMES = [
   '/memoji/models/memoji-neutral.png',
@@ -19,7 +18,13 @@ export function MemojiAvatar() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    // Change expression every 3.5 seconds
+    // Preload frames into memory
+    MEMOJI_FRAMES.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+
+    // Change expression smoothly every 3.5 seconds
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % MEMOJI_FRAMES.length);
     }, 3500);
@@ -27,32 +32,32 @@ export function MemojiAvatar() {
   }, []);
 
   return (
-    <div className="relative w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] flex items-center justify-center z-10">
-      {/* Organic radial blur halo - no ring, soft gradient field */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`halo-${currentIndex}`}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.05 }}
-          transition={{ duration: 1.2, ease: "easeInOut" }}
-          className={`absolute inset-0 rounded-full blur-[90px] sm:blur-[110px] ${HALO_COLORS[currentIndex]}`}
+    <div className="relative w-[185px] h-[185px] xs:w-[205px] xs:h-[205px] sm:w-[290px] sm:h-[290px] flex items-center justify-center z-10">
+      {/* Organic radial blur halo - smooth crossfade gradient field */}
+      {HALO_COLORS.map((haloColor, idx) => (
+        <div
+          key={`halo-${idx}`}
+          className={`absolute inset-0 rounded-full blur-[60px] sm:blur-[95px] ${haloColor} transition-opacity duration-1000 ease-in-out pointer-events-none ${
+            idx === currentIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          }`}
         />
-      </AnimatePresence>
+      ))}
       
-      {/* Memoji Crossfade */}
-      <AnimatePresence mode="wait">
-        <motion.img
-          key={`memoji-${currentIndex}`}
-          src={MEMOJI_FRAMES[currentIndex]}
-          alt="Memoji Expression"
-          initial={{ opacity: 0, scale: 0.98, y: 2 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 1.02, y: -2 }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
-          className="relative z-10 w-full h-full object-contain pointer-events-none drop-shadow-2xl"
-        />
-      </AnimatePresence>
+      {/* Preloaded Seamless Memoji Crossfade */}
+      <div className="relative w-full h-full flex items-center justify-center">
+        {MEMOJI_FRAMES.map((src, idx) => (
+          <img
+            key={src}
+            src={src}
+            alt="Memoji Expression"
+            className={`absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-2xl transition-all duration-700 ease-in-out ${
+              idx === currentIndex
+                ? 'opacity-100 scale-100 translate-y-0 z-10'
+                : 'opacity-0 scale-98 translate-y-1 z-0'
+            }`}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Reply, Send, X, Trash2, CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 import { UserAvatar } from '@components/ui/UserAvatar';
@@ -13,6 +15,7 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+  const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, sendReply } = useNotifications();
   const { addToast } = useApp();
 
@@ -102,59 +105,83 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
     }
   };
 
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <AnimatePresence>
-      {isOpen && (
+      <div className="fixed inset-0 z-50 pointer-events-none">
+        {/* Backdrop for outside tap */}
         <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+          aria-hidden="true"
+        />
+
+        {/* Notification Card / Popover */}
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 6, scale: 0.96 }}
+          exit={{ opacity: 0, y: 6, scale: 0.98 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
-          className="absolute -right-2 sm:-right-16 top-full mt-3 w-[calc(100vw-32px)] sm:w-[400px] max-w-[420px] glass-panel-strong rounded-[24px] shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden py-0 origin-top-right z-50 text-left pointer-events-auto"
+          className="fixed inset-x-3.5 top-16 max-w-[calc(100vw-1.75rem)] mx-auto max-h-[82vh] sm:max-w-none sm:mx-0 sm:inset-auto sm:top-16 sm:right-6 lg:right-10 sm:w-[420px] sm:max-h-[540px] bg-white/95 dark:bg-[#111622]/95 backdrop-blur-2xl rounded-[24px] shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] border border-black/10 dark:border-white/10 overflow-hidden py-0 z-50 text-left pointer-events-auto flex flex-col"
         >
-          {/* Header */}
-          <div className="px-5 py-3.5 border-b border-black/5 dark:border-white/10 flex items-center justify-between bg-white/40 dark:bg-[#111622]/40 backdrop-blur-md">
-            <div className="flex items-center gap-2.5">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">
-                Notifications
-              </h3>
-              {unreadCount > 0 ? (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
-                  {unreadCount} new
-                </span>
-              ) : (
-                <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                  {notifications.length} total
-                </span>
-              )}
-            </div>
+            {/* Header */}
+            <div className="px-4 sm:px-5 py-3.5 border-b border-black/5 dark:border-white/10 flex items-center justify-between bg-white/60 dark:bg-[#111622]/60 backdrop-blur-md shrink-0">
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">
+                  Notifications
+                </h3>
+                {unreadCount > 0 ? (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
+                    {unreadCount} new
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                    {notifications.length} total
+                  </span>
+                )}
+              </div>
 
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllAsRead}
+                    className="text-[11px] font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  >
+                    Mark read
+                  </button>
+                )}
+
+                {notifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 dark:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span className="hidden xs:inline">Clear all</span>
+                  </button>
+                )}
+
+                {/* Mobile close button */}
                 <button
                   type="button"
-                  onClick={markAllAsRead}
-                  className="text-[11px] font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  onClick={onClose}
+                  className="sm:hidden p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 ml-0.5"
+                  aria-label="Close notifications"
                 >
-                  Mark read
+                  <X className="h-4 w-4" />
                 </button>
-              )}
-
-              {notifications.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 dark:text-rose-400 px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center gap-1"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Clear all
-                </button>
-              )}
+              </div>
             </div>
-          </div>
 
-          {/* Body List */}
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-black/5 dark:divide-white/5 overscroll-contain">
+            {/* Body List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-black/5 dark:divide-white/5 overscroll-contain">
             {notifications.length === 0 ? (
               /* Polished Empty State */
               <motion.div
@@ -190,6 +217,13 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                     }`}
                     onClick={() => {
                       if (!notif.read) markAsRead(notif.id);
+                      if (notif.actionUrl) {
+                        navigate(notif.actionUrl);
+                        onClose();
+                      } else if (notif.relatedEntityId) {
+                        navigate(`/evidence/${notif.relatedEntityId}`);
+                        onClose();
+                      }
                     }}
                   >
                     <div className="flex items-start gap-3.5">
@@ -320,7 +354,8 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
             )}
           </div>
         </motion.div>
-      )}
-    </AnimatePresence>
+      </div>
+    </AnimatePresence>,
+    document.body
   );
 }

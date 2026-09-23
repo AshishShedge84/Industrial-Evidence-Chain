@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PageContainer } from '@components/layout';
-import { Badge, Button } from '@components/ui';
+import { Badge, Button, SecurityIconBox } from '@components/ui';
 import { Modal } from '@components/ui/Modal';
 import { Input } from '@components/ui/Input';
 import { Select } from '@components/ui/Select';
-import { Box, MapPin, Settings, Calendar, User, ChevronRight, Edit, Download, QrCode, Camera, Shield, Loader2, Check } from 'lucide-react';
+import { MapPin, Settings, Calendar, User, ChevronRight, Edit, Download, QrCode, Camera, Shield, ShieldCheck, Loader2, Check } from 'lucide-react';
 import { EVIDENCE_STATUS_COLORS } from '@constants/evidenceStatus';
 import type { Asset, AssetHistoryEntry, AssetStatus, AssetCategory, UpdateAssetRequest } from '@type-defs/asset';
 import type { Evidence } from '@type-defs/evidence';
@@ -303,21 +303,33 @@ export function AssetDetailsPage() {
                 </div>
                 <div className="divide-y divide-black/5 dark:divide-white/5">
                   {evidenceList.map((ev) => (
-                    <div key={ev.evidenceId} className="flex items-center justify-between p-6 px-8 hover:bg-white/40 dark:hover:bg-white/5 transition-colors group">
+                    <div 
+                      key={ev.evidenceId} 
+                      onClick={() => navigate(`/evidence/${ev.evidenceId}`)}
+                      className="flex items-center justify-between p-6 px-8 hover:bg-white/40 dark:hover:bg-white/5 transition-all group cursor-pointer"
+                    >
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-white dark:bg-white/10 border border-black/5 dark:border-white/10 shadow-sm group-hover:border-primary-200 dark:group-hover:border-primary-700 flex items-center justify-center transition-colors">
-                          <Shield className="h-5 w-5 text-gray-500 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
-                        </div>
+                        <SecurityIconBox
+                          icon={ev.status === 'Anchored' || ev.status === 'Verified' ? ShieldCheck : Shield}
+                          variant={ev.status === 'Anchored' || ev.status === 'Verified' ? 'verified' : 'primary'}
+                          size="md"
+                        />
                         <div>
-                          <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{ev.activityType}</p>
+                          <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors flex items-center gap-2">
+                            <span>{ev.activityType}</span>
+                            <span className="font-mono text-xs text-gray-400 font-normal">#{ev.evidenceId.substring(0, 8)}</span>
+                          </p>
                           <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">{ev.description || 'No description provided'}</p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <Badge className={EVIDENCE_STATUS_COLORS[ev.status as keyof typeof EVIDENCE_STATUS_COLORS]}>
-                          {ev.status}
-                        </Badge>
-                        <span className="text-[12px] font-medium text-gray-500">{formatDate(ev.timestamp)}</span>
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <Badge className={EVIDENCE_STATUS_COLORS[ev.status as keyof typeof EVIDENCE_STATUS_COLORS]}>
+                            {ev.status}
+                          </Badge>
+                          <span className="text-[12px] font-medium text-gray-400 dark:text-gray-500">{formatDate(ev.timestamp)}</span>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all" />
                       </div>
                     </div>
                   ))}

@@ -77,8 +77,26 @@ public class EvidenceController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetEvidence([FromQuery] EvidenceFilterParams filterParams)
     {
+        // Scope manager evidence queries by default to their assigned manager ID unless admin/auditor
+        if (User.IsInRole("Manager") && !User.IsInRole("Admin") && !User.IsInRole("Auditor"))
+        {
+            if (!filterParams.AssignedManagerId.HasValue)
+            {
+                filterParams.AssignedManagerId = GetCurrentUserId();
+            }
+        }
+
         var result = await _evidenceService.GetEvidenceAsync(filterParams);
         var reqId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+
+        if (!CanViewFullHash())
+        {
+            foreach (var item in result.Items)
+            {
+                ApplyHashMasking(item);
+            }
+        }
+
         return Ok(ApiResponse<PagedResult<EvidenceDto>>.SuccessResult(result, reqId));
     }
 
@@ -109,6 +127,7 @@ public class EvidenceController : ControllerBase
             }, reqId));
         }
 
+        ApplyHashMasking(evidence);
         return Ok(ApiResponse<EvidenceDto>.SuccessResult(evidence, reqId));
     }
 
@@ -294,7 +313,8 @@ public class EvidenceController : ControllerBase
 
         try
         {
-            var verification = await _evidenceService.VerifyEvidenceAsync(id);
+            var verification = await _evidenceService.GetEvidenceVerificationAsync(id);
+            ApplyHashMasking(verification);
             return Ok(ApiResponse<EvidenceVerificationResponseDto>.SuccessResult(verification, reqId));
         }
         catch (NotFoundException ex)
@@ -316,19 +336,24 @@ public class EvidenceController : ControllerBase
     /// <param name="id">Evidence unique ID.</param>
     /// <response code="200">Returns verification result.</response>
     /// <response code="401">Unauthorized.</response>
+    /// <response code="403">Forbidden.</response>
     /// <response code="404">Evidence not found.</response>
     [HttpPost("api/evidence/{id:guid}/verify")]
     [HttpPost("api/verification/{id:guid}")]
+    [Authorize(Roles = "Manager,Auditor,Admin")]
     [ProducesResponseType(typeof(ApiResponse<EvidenceVerificationResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> VerifyEvidence(Guid id)
     {
         var reqId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        var userId = GetCurrentUserId();
 
         try
         {
-            var verification = await _evidenceService.VerifyEvidenceAsync(id);
+            var verification = await _evidenceService.VerifyEvidenceAsync(id, userId, recordAudit: true);
+            ApplyHashMasking(verification);
             return Ok(ApiResponse<EvidenceVerificationResponseDto>.SuccessResult(verification, reqId));
         }
         catch (NotFoundException ex)
@@ -344,18 +369,81 @@ public class EvidenceController : ControllerBase
     }
 
     /// <summary>
+    /// Records an operational decision action performed by a manager (Escalate, Request Re-capture, Acknowledge, Flag Storage).
+    /// </summary>
+    /// <param name="id">Evidence unique ID.</param>
+    /// <param name="dto">Action details.</param>
+    /// <response code="200">Action successfully recorded.</response>
+    /// <response code="400">Invalid action request.</response>
+    /// <response code="401">Unauthorized.</response>
+    /// <response code="403">Forbidden.</response>
+    [HttpPost("api/evidence/{id:guid}/action")]
+    [Authorize(Roles = "Manager,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RecordOperationalAction(Guid id, [FromBody] OperationalActionRequestDto dto)
+    {
+        var reqId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrWhiteSpace(dto.Action))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "VALIDATION_FAILED",
+                Message = "Action cannot be empty.",
+                StatusCode = StatusCodes.Status400BadRequest,
+                TraceId = reqId
+            }, reqId));
+        }
+
+        try
+        {
+            await _evidenceService.RecordOperationalActionAsync(id, dto.Action, dto.Reason, userId);
+            return Ok(ApiResponse<bool>.SuccessResult(true, reqId));
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ApiResponse<bool>.ErrorResult(new ErrorResponseDto
+            {
+                Code = "EVIDENCE_NOT_FOUND",
+                Message = ex.Message,
+                StatusCode = StatusCodes.Status404NotFound,
+                TraceId = reqId
+            }, reqId));
+        }
+    }
+
+    /// <summary>
+    /// Retrieves audit trail records for a specific evidence record.
+    /// </summary>
+    /// <param name="id">Evidence unique ID.</param>
+    /// <response code="200">Returns list of audit trail entries.</response>
+    /// <response code="401">Unauthorized.</response>
+    [HttpGet("api/evidence/{id:guid}/audit-trail")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AuditTrailEntryDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetEvidenceAuditTrail(Guid id)
+    {
+        var reqId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        var entries = await _evidenceService.GetEvidenceAuditTrailAsync(id);
+        return Ok(ApiResponse<IReadOnlyList<AuditTrailEntryDto>>.SuccessResult(entries, reqId));
+    }
+
+    /// <summary>
     /// Retrieves all evidence records associated with a specific asset.
-    /// Conforms to the frontend Asset Detail screen contract.
     /// </summary>
     /// <param name="assetId">Asset unique ID.</param>
     /// <param name="page">Page number (default 1).</param>
-    /// <param name="pageSize">Page size (default 20).</param>
-    /// <response code="200">Returns paginated evidence for the asset.</response>
+    /// <param name="pageSize">Page size (default 20, max 100).</param>
+    /// <response code="200">Returns paginated evidence records for the asset.</response>
     /// <response code="401">Unauthorized.</response>
     [HttpGet("api/assets/{assetId:guid}/evidence")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<EvidenceDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetEvidenceByAssetId(
+    public async Task<IActionResult> GetEvidenceByAsset(
         Guid assetId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
@@ -367,12 +455,39 @@ public class EvidenceController : ControllerBase
 
     private Guid GetCurrentUserId()
     {
-        var subClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? User.FindFirst("sub")?.Value;
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(idClaim, out var guid))
+            return guid;
 
-        if (!string.IsNullOrWhiteSpace(subClaim) && Guid.TryParse(subClaim, out var userId) && userId != Guid.Empty)
-            return userId;
+        throw new UnauthorizedAccessException("User identity could not be verified from token claims.");
+    }
 
-        throw new UnauthorizedAccessException("Invalid or missing user identity in token.");
+    private bool CanViewFullHash() =>
+        User.IsInRole("Admin") || User.IsInRole("Auditor") || User.IsInRole("Manager");
+
+    private static string MaskHash(string? hash)
+    {
+        if (string.IsNullOrEmpty(hash) || hash.Length < 12)
+            return "**********************";
+        return $"{hash[..6]}****************{hash[^4..]}";
+    }
+
+    private void ApplyHashMasking(EvidenceDto evidence)
+    {
+        if (!CanViewFullHash() && !string.IsNullOrEmpty(evidence.EvidenceHash))
+        {
+            evidence.EvidenceHash = MaskHash(evidence.EvidenceHash);
+        }
+    }
+
+    private void ApplyHashMasking(EvidenceVerificationResponseDto verification)
+    {
+        if (!CanViewFullHash())
+        {
+            if (!string.IsNullOrEmpty(verification.CalculatedHash))
+                verification.CalculatedHash = MaskHash(verification.CalculatedHash);
+            if (!string.IsNullOrEmpty(verification.TrustedHash))
+                verification.TrustedHash = MaskHash(verification.TrustedHash);
+        }
     }
 }

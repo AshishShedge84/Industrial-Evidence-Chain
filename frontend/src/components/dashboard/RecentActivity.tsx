@@ -72,15 +72,15 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
 
   return (
     <div className="w-full">
-      <div className="flex items-end justify-between mb-6 px-1">
-        <h3 className="text-[17px] font-semibold text-gray-900 dark:text-white tracking-tight">Recent Activity</h3>
-        <button className="text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center gap-1 group transition-colors">
+      <div className="flex items-end justify-between mb-3.5 sm:mb-6 px-1">
+        <h3 className="text-base sm:text-[17px] font-semibold text-gray-900 dark:text-white tracking-tight">Recent Activity</h3>
+        <button className="text-xs sm:text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center gap-1 group transition-colors">
           View all
           <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
       
-      <div className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl rounded-[28px] border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] overflow-hidden relative transition-all duration-300">
+      <div className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl rounded-2xl sm:rounded-[28px] border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] overflow-hidden relative transition-all duration-300">
         <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
         <div className="divide-y divide-black/5 dark:divide-white/5">
           {displayActivities.map((activity) => {
@@ -90,24 +90,24 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
             return (
               <div
                 key={activity.id}
-                className="flex items-start gap-4 p-5 sm:p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group"
+                className="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-5 lg:p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group"
               >
-                <div className={`h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner dark:shadow-none ${colorClass}`}>
-                  <Icon className="h-5 w-5" />
+                <div className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner dark:shadow-none ${colorClass}`}>
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight truncate">{activity.title}</p>
-                    <span className="text-[13px] font-medium text-gray-400 flex-shrink-0">
+                  <div className="flex items-center justify-between gap-3 sm:gap-4">
+                    <p className="text-sm sm:text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight truncate">{activity.title}</p>
+                    <span className="text-xs sm:text-[13px] font-medium text-gray-400 flex-shrink-0">
                       {formatRelativeTime(activity.timestamp)}
                     </span>
                   </div>
                   {activity.description && (
-                    <p className="text-[14px] text-gray-500 dark:text-gray-400 mt-1 truncate tracking-wide">{activity.description}</p>
+                    <p className="text-xs sm:text-[14px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 truncate tracking-wide">{activity.description}</p>
                   )}
-                  <div className="mt-3 flex items-center gap-3 text-[13px] text-gray-400">
+                  <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-3 text-xs sm:text-[13px] text-gray-400">
                     {activity.assetTag && (
-                      <span className="font-mono bg-gray-100/80 dark:bg-white/10 px-2 py-0.5 rounded-md text-gray-600 dark:text-gray-300 font-medium">{activity.assetTag}</span>
+                      <span className="font-mono bg-gray-100/80 dark:bg-white/10 px-1.5 sm:px-2 py-0.5 rounded text-gray-600 dark:text-gray-300 font-medium">{activity.assetTag}</span>
                     )}
                     {activity.status && (
                       <Badge className={EVIDENCE_STATUS_COLORS[activity.status]}>
@@ -116,23 +116,23 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pt-2">
+                <div className="flex items-center gap-1 sm:gap-2 opacity-0 group-hover:opacity-100 transition-opacity pt-1 sm:pt-2">
                   {activity.assetId && onViewAsset && (
                     <button
                       onClick={() => onViewAsset(activity.assetId!)}
-                      className="p-2 text-gray-400 hover:text-gray-900 rounded-xl hover:bg-black/5 transition-colors"
+                      className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-900 rounded-lg sm:rounded-xl hover:bg-black/5 transition-colors"
                       title="View Asset"
                     >
-                      <Package className="h-4 w-4" />
+                      <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                   )}
                   {activity.evidenceId && onViewEvidence && (
                     <button
                       onClick={() => onViewEvidence(activity.evidenceId!)}
-                      className="p-2 text-gray-400 hover:text-gray-900 rounded-xl hover:bg-black/5 transition-colors"
+                      className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-900 rounded-lg sm:rounded-xl hover:bg-black/5 transition-colors"
                       title="View Evidence"
                     >
-                      <FileText className="h-4 w-4" />
+                      <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                   )}
                 </div>

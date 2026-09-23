@@ -59,8 +59,12 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute><EvidenceHistoryPage /></ProtectedRoute>,
       },
       {
+        path: 'verification',
+        element: <RoleRoute allowedRoles={['Manager', 'Auditor', 'Admin']}><VerificationPage /></RoleRoute>,
+      },
+      {
         path: 'verify',
-        element: <ProtectedRoute><VerificationPage /></ProtectedRoute>,
+        element: <Navigate to="/verification" replace />,
       },
       {
         path: 'audit',

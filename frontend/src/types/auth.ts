@@ -6,6 +6,8 @@ export type AvatarType = 'profile' | 'memoji';
 export interface User {
   id: string;
   email: string;
+  username?: string;
+  fullName?: string;
   firstName: string;
   lastName: string;
   role: UserRole;
@@ -66,8 +68,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Manager: [
     'assets:read',
     'assets:write',
-    'evidence:create',
     'evidence:read:all',
+    'evidence:verify',
     'evidence:approve',
     'qr:scan',
     'qr:generate',
@@ -84,7 +86,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'assets:read',
     'assets:write',
     'assets:delete',
-    'evidence:create',
     'evidence:read:all',
     'evidence:verify',
     'evidence:delete',

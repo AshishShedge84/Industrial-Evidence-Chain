@@ -28,6 +28,8 @@ public class CreateEvidenceRequestDto
     [Required(ErrorMessage = "Description is required.")]
     [StringLength(4000, ErrorMessage = "Description cannot exceed 4000 characters.")]
     public string Description { get; set; } = string.Empty;
+
+    public Guid? AssignedManagerId { get; set; }
 }
 
 public class LocationPayloadDto

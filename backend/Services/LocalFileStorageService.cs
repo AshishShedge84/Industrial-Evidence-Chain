@@ -24,13 +24,30 @@ public class LocalFileStorageService : IFileStorageService
         ILogger<LocalFileStorageService> logger)
     {
         _logger = logger;
-        var configuredPath = options.Value?.BasePath ?? "uploads";
-        _basePath = Path.GetFullPath(configuredPath);
+        
+        // Resolve 'Uploaded Media' directory at project root
+        string? candidatePath = Environment.GetEnvironmentVariable("UPLOADED_MEDIA_PATH") 
+                                ?? options.Value?.BasePath;
 
-        if (!Directory.Exists(_basePath))
+        if (string.IsNullOrWhiteSpace(candidatePath) || candidatePath == "uploads")
         {
-            Directory.CreateDirectory(_basePath);
+            // Default to 'Uploaded Media' at project root or parent
+            var rootParent = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "Uploaded Media"));
+            var rootCurrent = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "Uploaded Media"));
+            
+            candidatePath = Directory.Exists(rootParent) 
+                ? rootParent 
+                : (Directory.Exists(rootCurrent) ? rootCurrent : rootParent);
         }
+
+        _basePath = Path.GetFullPath(candidatePath);
+
+        // Ensure primary categories exist
+        Directory.CreateDirectory(Path.Combine(_basePath, "images"));
+        Directory.CreateDirectory(Path.Combine(_basePath, "videos"));
+        Directory.CreateDirectory(Path.Combine(_basePath, "documents"));
+
+        _logger.LogInformation("Host Media Storage initialized at: {BasePath}", _basePath);
     }
 
     public async Task<StoredFileResult> StoreAsync(
@@ -57,12 +74,19 @@ public class LocalFileStorageService : IFileStorageService
         }
 
         var extension = Path.GetExtension(sanitizedFileName);
+        var fileType = InferMediaFileType(extension, contentType);
+        
+        // Category folder: images, videos, documents
+        var categoryFolder = fileType switch
+        {
+            MediaFileType.Image => "images",
+            MediaFileType.Video => "videos",
+            _ => "documents"
+        };
+
         var uniquePrefix = Guid.NewGuid().ToString("N");
         var storageFileName = $"{uniquePrefix}_{sanitizedFileName}";
-
-        // Subdirectory partitioning by year/month
-        var subFolder = DateTime.UtcNow.ToString("yyyy/MM");
-        var targetDirectory = Path.Combine(_basePath, subFolder.Replace('/', Path.DirectorySeparatorChar));
+        var targetDirectory = Path.Combine(_basePath, categoryFolder);
 
         if (!Directory.Exists(targetDirectory))
         {
@@ -91,11 +115,10 @@ public class LocalFileStorageService : IFileStorageService
             fileHash = Convert.ToHexString(sha256.GetHashAndReset()).ToLowerInvariant();
         }
 
-        var storageKey = $"{subFolder}/{storageFileName}";
+        var storageKey = $"{categoryFolder}/{storageFileName}";
         var storageUrl = $"/uploads/{storageKey}";
-        var fileType = InferMediaFileType(extension, contentType);
 
-        _logger.LogInformation("File stored successfully. StorageKey: {StorageKey}, Size: {Size} bytes, SHA256: {FileHash}", storageKey, bytesWritten, fileHash);
+        _logger.LogInformation("Evidence media stored on host: {StorageKey} ({Size} bytes, SHA-256: {FileHash})", storageKey, bytesWritten, fileHash);
 
         return new StoredFileResult
         {
@@ -123,7 +146,24 @@ public class LocalFileStorageService : IFileStorageService
 
         if (!File.Exists(fullPhysicalPath))
         {
-            throw new NotFoundException($"File not found for storage key: {storageKey}");
+            var normalizedKey = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            var fallbacks = new[]
+            {
+                Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "uploads", normalizedKey)),
+                Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "backend", "uploads", normalizedKey)),
+                Path.GetFullPath(Path.Combine(_basePath, "..", "backend", "uploads", normalizedKey)),
+                Path.GetFullPath(Path.Combine(_basePath, normalizedKey))
+            };
+
+            var found = fallbacks.FirstOrDefault(f => File.Exists(f));
+            if (found != null)
+            {
+                fullPhysicalPath = found;
+            }
+            else
+            {
+                throw new NotFoundException($"File not found for storage key: {storageKey}");
+            }
         }
 
         Stream stream = new FileStream(fullPhysicalPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);

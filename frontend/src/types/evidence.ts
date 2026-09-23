@@ -54,11 +54,22 @@ export interface Evidence {
   mediaReferences: MediaReference[];
   status: EvidenceStatus;
   blockchainProof?: BlockchainProof;
+  evidenceHash?: string;
+  assetName?: string;
+  assetCode?: string;
+  userName?: string;
+  userRole?: string;
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;
   anchoredAt?: string;
   verifiedAt?: string;
+  verificationStatus?: string;
+  verifiedBy?: string;
+  assignedManagerId?: string;
+  assignedManagerName?: string;
+  transactionId?: string;
+  mediaHashes?: string[];
 }
 
 export interface BlockchainProof {
@@ -121,6 +132,9 @@ export interface EvidenceSearchParams {
   userId?: string;
   activityType?: ActivityType;
   status?: EvidenceStatus;
+  verificationStatus?: string;
+  assignedManagerId?: string;
+  query?: string;
   startDate?: string;
   endDate?: string;
   page?: number;

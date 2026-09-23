@@ -28,6 +28,12 @@ public class EvidenceFilterParams
     /// <summary>Optional search term matching Description or EvidenceHash.</summary>
     public string? Query { get; set; }
 
+    /// <summary>Optional filter by VerificationStatus (PENDING_VERIFICATION, VERIFIED, INTEGRITY_MISMATCH, DRAFT).</summary>
+    public string? VerificationStatus { get; set; }
+
+    /// <summary>Optional filter by assigned Manager unique ID.</summary>
+    public Guid? AssignedManagerId { get; set; }
+
     /// <summary>Page number (1-based, default 1).</summary>
     public int Page { get; set; } = 1;
 

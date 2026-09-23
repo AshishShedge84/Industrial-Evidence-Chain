@@ -64,6 +64,20 @@
   100% { background-position: 200% 0; }
 }
 
+@keyframes iec-float {
+  0%, 100% {
+    transform: translateY(-4px);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+.animate-iec-float {
+  animation: iec-float 6s ease-in-out infinite;
+  will-change: transform;
+}
+
 .animate-fade-in {
   animation: fade-in var(--transition-normal) ease-out;
 }

@@ -24,7 +24,7 @@ dotnet run --project backend
 
 Alternatively, supply the standard ASP.NET Core connection string environment variable:
 ```powershell
-$env:ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=industrial_evidence_chain;Username=postgres;Password=YourPassword"
+$env:ConnectionStrings__DefaultConnection="Host=localhost;Port=5433;Database=iec_db;Username=postgres;Password=YourPassword"
 ```
 
 ---
@@ -34,7 +34,7 @@ $env:ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=ind
 Store your local developer password securely in your local user profile outside the repository:
 
 ```powershell
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=industrial_evidence_chain;Username=postgres;Password=YourPassword" --project backend
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5433;Database=iec_db;Username=postgres;Password=YourPassword" --project backend
 ```
 
 ---
@@ -46,7 +46,7 @@ Create a local override file `backend/appsettings.Development.local.json` (ignor
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=industrial_evidence_chain;Username=postgres;Password=YourPassword"
+    "DefaultConnection": "Host=localhost;Port=5433;Database=iec_db;Username=postgres;Password=YourPassword"
   }
 }
 ```

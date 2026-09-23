@@ -79,37 +79,38 @@ export const ROLE_ASSISTANT_IDENTITIES: Record<UserRole, AssistantIdentity> = {
  * Uses the project's original default assistant Memoji character.
  */
 export const DEFAULT_EXPRESSION_PACK: RoleExpressionPack = {
-  initial: '/memojis/Initial chat bot.png',
-  hover: '/memojis/Initial chatbot 2.png',
-  idle: '/memojis/Initial chatbot 2.png',
-  thinking: '/memojis/Thinking for solution.png',
-  success: '/memojis/Work done.png',
-  error: '/memojis/Something wrong.png',
+  initial: '/memojis/roles/Technician/Hello.png',
+  hover: '/memojis/roles/Technician/Hover.png',
+  idle: '/memojis/roles/Technician/Idle.png',
+  thinking: '/memojis/roles/Technician/Thinking.png',
+  success: '/memojis/roles/Technician/Work done.png',
+  error: '/memojis/roles/Technician/Something wrong.png',
 };
 
 export const DEFAULT_ASSISTANT_IDENTITY: AssistantIdentity = {
-  role: 'default',
-  displayName: 'IEC Assistant',
-  avatar: '/memojis/Initial chat bot.png',
-  secondaryAvatar: '/memojis/Initial chatbot 2.png',
+  role: 'Technician',
+  displayName: 'Technician Support',
+  avatar: '/memojis/roles/Technician/Hello.png',
+  secondaryAvatar: '/memojis/Technician 2.png',
   expressions: DEFAULT_EXPRESSION_PACK,
 };
 
 /**
  * Resolves the assistant identity for a given user object or role string with graceful fallback.
- * Compatible with future user-level persistent Memoji assignment.
+ * Case-insensitive role resolution ensures exact matching across all user roles.
  */
 export function getAssistantIdentity(userOrRole?: User | UserRole | string | null): AssistantIdentity {
   if (!userOrRole) {
     return DEFAULT_ASSISTANT_IDENTITY;
   }
 
-  const role = typeof userOrRole === 'object' ? userOrRole.role : userOrRole;
-  if (!role) {
+  const rawRole = typeof userOrRole === 'object' ? userOrRole.role : userOrRole;
+  if (!rawRole || typeof rawRole !== 'string') {
     return DEFAULT_ASSISTANT_IDENTITY;
   }
 
-  return ROLE_ASSISTANT_IDENTITIES[role as UserRole] || DEFAULT_ASSISTANT_IDENTITY;
+  const normalizedRole = (rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase()) as UserRole;
+  return ROLE_ASSISTANT_IDENTITIES[normalizedRole] || ROLE_ASSISTANT_IDENTITIES[rawRole as UserRole] || DEFAULT_ASSISTANT_IDENTITY;
 }
 
 /**
