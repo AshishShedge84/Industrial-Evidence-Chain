@@ -19,7 +19,7 @@ export const AssetList = forwardRef<HTMLDivElement, AssetListProps>(
   ({ className = '', assets, isLoading, onView, onEdit, onDelete, emptyTitle, emptyDescription, emptyAction, ...props }, ref) => {
     if (isLoading) {
       return (
-        <div ref={ref} className={`grid gap-6 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 ${className}`} {...props} role="status" aria-label="Loading assets">
+        <div ref={ref} className={`responsive-asset-grid ${className}`} {...props} role="status" aria-label="Loading assets">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="bg-white rounded-2xl p-6 border border-black/5 flex flex-col h-full animate-pulse">
               <div className="flex items-start justify-between mb-6">
@@ -60,7 +60,7 @@ export const AssetList = forwardRef<HTMLDivElement, AssetListProps>(
     }
 
     return (
-      <div ref={ref} className={`grid gap-6 sm:grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 ${className}`} {...props} role="list">
+      <div ref={ref} className={`responsive-asset-grid ${className}`} {...props} role="list">
         {assets.map((asset) => (
           <AssetCard
             key={asset.id}

@@ -15,6 +15,8 @@ public class Asset
     /// <summary>Unique asset code / tag — used as QR code payload.</summary>
     public string AssetCode { get; set; } = string.Empty;
 
+    public string QrIdentifier { get; set; } = string.Empty;
+
     public string Category { get; set; } = string.Empty;
     public string? Location { get; set; }
     public AssetStatus Status { get; set; } = AssetStatus.Active;

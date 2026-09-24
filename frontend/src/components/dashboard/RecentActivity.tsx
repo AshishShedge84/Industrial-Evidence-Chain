@@ -80,7 +80,7 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
         </button>
       </div>
       
-      <div className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl rounded-2xl sm:rounded-[28px] border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] overflow-hidden relative transition-all duration-300">
+      <div className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl rounded-2xl sm:rounded-[28px] border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] overflow-hidden relative transition-all duration-300 w-full min-w-0">
         <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
         <div className="divide-y divide-black/5 dark:divide-white/5">
           {displayActivities.map((activity) => {
@@ -90,7 +90,7 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
             return (
               <div
                 key={activity.id}
-                className="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-5 lg:p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group"
+                className="flex items-start gap-3 sm:gap-4 p-3 sm:p-5 lg:p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group w-full min-w-0"
               >
                 <div className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner dark:shadow-none ${colorClass}`}>
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5" />

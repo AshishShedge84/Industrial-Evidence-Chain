@@ -13,7 +13,7 @@ export interface PageContainerProps extends HTMLAttributes<HTMLDivElement> {
 export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(
   ({ className = '', title, description, breadcrumbs, actions, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={`w-full ${className}`} {...props}>
+      <div ref={ref} className={`w-full min-w-0 ${className}`} {...props}>
         {(title || breadcrumbs || actions) && (
           <div className="mb-5 sm:mb-8 lg:mb-10">
             {breadcrumbs && breadcrumbs.length > 0 && (
@@ -47,7 +47,7 @@ export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(
             </div>
           </div>
         )}
-        <div className="w-full">{children}</div>
+        <div className="w-full min-w-0">{children}</div>
       </div>
     );
   }

@@ -73,7 +73,7 @@ export function AssetHistoryPage() {
   }
 
   return (
-    <div className="space-y-8 pb-12 max-w-4xl mx-auto">
+    <div className="space-y-8 pb-12 max-w-4xl mx-auto w-full min-w-0">
       <div className="flex items-center gap-4 mb-4">
         <button 
           onClick={() => navigate(`/assets/${asset.id}`)}

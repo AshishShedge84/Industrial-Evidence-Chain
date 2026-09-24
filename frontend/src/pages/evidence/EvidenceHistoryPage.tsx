@@ -75,7 +75,7 @@ export function EvidenceHistoryPage() {
           { label: 'Evidence Ledger' },
         ]}
       >
-        <div className="max-w-5xl space-y-6">
+        <div className="max-w-5xl w-full min-w-0 space-y-6">
           {evidenceList.map((evidence, index) => {
             const Icon = ACTIVITY_TYPE_ICONS[evidence.activityType] || Shield;
             

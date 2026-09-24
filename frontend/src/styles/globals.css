@@ -42,6 +42,9 @@
   --color-error-700: #B91C1C;
   --color-error-800: #991B1B;
   --color-error-900: #7F1D1D;
+
+  /* Breakpoints — xs is used across the codebase */
+  --breakpoint-xs: 475px;
 }
 
 :root {
@@ -345,6 +348,11 @@ html {
   -moz-osx-font-smoothing: grayscale;
   font-size: 16px;
   line-height: 1.5;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  position: relative;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -359,12 +367,50 @@ body {
   font-size: var(--text-body);
   line-height: var(--text-body-lh);
   font-weight: var(--font-weight-normal);
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  position: relative;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE CONTAINMENT
+   Ensure no element causes horizontal scroll on mobile.
+   ============================================================ */
+@media (max-width: 1023px) {
+  /* Enforce width containment on flex/grid children at mobile */
+  main {
+    overflow-x: hidden !important;
+    max-width: 100%;
+  }
+}
+
+/* Responsive Asset Grid — fits natural 1, 2, or 3 cards based on available container width */
+.responsive-asset-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .responsive-asset-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
 }
 
 /* Selection */

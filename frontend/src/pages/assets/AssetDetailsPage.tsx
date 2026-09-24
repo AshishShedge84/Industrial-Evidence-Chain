@@ -6,6 +6,7 @@ import { Modal } from '@components/ui/Modal';
 import { Input } from '@components/ui/Input';
 import { Select } from '@components/ui/Select';
 import { MapPin, Settings, Calendar, User, ChevronRight, Edit, Download, QrCode, Camera, Shield, ShieldCheck, Loader2, Check } from 'lucide-react';
+import { QRCodeDisplay } from '@components/qr/QRCodeDisplay';
 import { EVIDENCE_STATUS_COLORS } from '@constants/evidenceStatus';
 import type { Asset, AssetHistoryEntry, AssetStatus, AssetCategory, UpdateAssetRequest } from '@type-defs/asset';
 import type { Evidence } from '@type-defs/evidence';
@@ -185,12 +186,12 @@ export function AssetDetailsPage() {
           </div>
         }
       >
-        <div className="grid gap-8 lg:grid-cols-12">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-12 w-full min-w-0">
           {/* Main Content Area */}
-          <div className="lg:col-span-8 space-y-8">
+          <div className="lg:col-span-8 space-y-6 sm:space-y-8 min-w-0">
             
             {/* Asset Information */}
-            <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
+            <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] p-4 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-[28px]" />
               <div className="relative">
                 <div className="flex items-center justify-between mb-8">
@@ -275,12 +276,12 @@ export function AssetDetailsPage() {
               <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
                 <div className="relative">
-                  <div className="p-8 pb-4">
+                  <div className="p-4 sm:p-6 lg:p-8 pb-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Specifications</h3>
                   </div>
                   <dl className="divide-y divide-black/5 dark:divide-white/5">
                     {Object.entries(asset.specifications).map(([key, value]) => (
-                      <div key={key} className="flex flex-col sm:flex-row sm:items-center px-8 py-5 hover:bg-white/40 dark:hover:bg-white/5 transition-colors">
+                      <div key={key} className="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 lg:px-8 py-4 sm:py-5 hover:bg-white/40 dark:hover:bg-white/5 transition-colors">
                         <dt className="text-[13px] font-semibold text-gray-500 uppercase tracking-widest sm:w-1/3">{key}</dt>
                         <dd className="mt-1 sm:mt-0 text-[15px] font-medium text-gray-900 dark:text-gray-100 sm:w-2/3">{String(value)}</dd>
                       </div>
@@ -294,7 +295,7 @@ export function AssetDetailsPage() {
             <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none" />
               <div className="relative">
-                <div className="p-8 pb-4 flex items-end justify-between">
+                <div className="p-4 sm:p-6 lg:p-8 pb-4 flex items-end justify-between">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Recent Evidence</h3>
                   <button className="text-[13px] font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1 group">
                     View all
@@ -306,7 +307,7 @@ export function AssetDetailsPage() {
                     <div 
                       key={ev.evidenceId} 
                       onClick={() => navigate(`/evidence/${ev.evidenceId}`)}
-                      className="flex items-center justify-between p-6 px-8 hover:bg-white/40 dark:hover:bg-white/5 transition-all group cursor-pointer"
+                      className="flex items-center justify-between p-4 sm:p-6 px-4 sm:px-6 lg:px-8 hover:bg-white/40 dark:hover:bg-white/5 transition-all group cursor-pointer"
                     >
                       <div className="flex items-center gap-4">
                         <SecurityIconBox
@@ -380,7 +381,7 @@ export function AssetDetailsPage() {
             </section>
 
             {/* History Preview */}
-            <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
+            <section className="bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[28px] p-4 sm:p-6 lg:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-[28px]" />
               <div className="relative">
                 <div className="flex items-end justify-between mb-8">
@@ -494,11 +495,8 @@ export function AssetDetailsPage() {
         size="sm"
       >
         <div className="flex flex-col items-center gap-6 py-4">
-          <div className="p-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
-            {/* QR value rendered as a scannable code block */}
-            <div className="w-48 h-48 bg-gray-900 rounded-xl flex items-center justify-center">
-              <QrCode className="h-24 w-24 text-white" />
-            </div>
+          <div className="flex justify-center mb-2">
+            <QRCodeDisplay value={asset.qrCode || asset.assetTag} size={200} />
           </div>
           <div className="text-center">
             <p className="text-[13px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Asset Identifier</p>

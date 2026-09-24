@@ -168,8 +168,8 @@ export function AssetsPage() {
           )
         }
       >
-        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
-          <div className="w-full lg:w-72 flex-shrink-0">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 xl:gap-10 w-full min-w-0">
+          <div className="w-full lg:w-64 xl:w-72 flex-shrink-0 min-w-0">
             <div className="sticky top-28 bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 rounded-[28px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-[28px]" />
               <div className="relative">
@@ -177,7 +177,7 @@ export function AssetsPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 rounded-[28px] p-2 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] relative min-h-[400px]">
+          <div className="flex-1 min-w-0 bg-white/70 dark:bg-[#0F1218]/70 backdrop-blur-xl border-t border-l border-white/40 dark:border-white/10 border-r border-b border-black/5 dark:border-black/20 rounded-[28px] p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] relative min-h-[400px]">
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent pointer-events-none rounded-[28px]" />
             <div className="relative h-full">
               {error ? (

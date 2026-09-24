@@ -25,5 +25,6 @@ public class User
     public ICollection<EvidenceRecord> ManagedEvidenceRecords { get; set; } = new List<EvidenceRecord>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }
 

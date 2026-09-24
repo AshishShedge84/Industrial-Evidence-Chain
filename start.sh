@@ -67,7 +67,7 @@ fi
 DB_PASSWORD="${DB_PASSWORD:-}"
 if [ -z "$DB_PASSWORD" ]; then
   if [ -t 0 ]; then
-    read -rsp "PostgreSQL password: " DB_PASSWORD
+    read -rsp "PostgreSQL password (default 'postgres'): " DB_PASSWORD
     echo ""
   else
     read -r DB_PASSWORD || true
@@ -75,10 +75,8 @@ if [ -z "$DB_PASSWORD" ]; then
 fi
 
 if [ -z "$DB_PASSWORD" ]; then
-  echo -e "  ${RED}✘${RESET} Password cannot be empty."
-  echo "PostgreSQL authentication failed."
-  echo "IEC startup cancelled."
-  exit 1
+  echo -e "  ${YELLOW}⚠${RESET} Password empty, defaulting to 'postgres'."
+  DB_PASSWORD="postgres"
 fi
 
 # Helper functions
@@ -352,8 +350,8 @@ echo ""
 echo -e "  ${BOLD}PostgreSQL:${RESET}"
 echo -e "  localhost:5433"
 echo ""
-echo -e "${BOLD}${GREEN}==================================================${RESET}"
+echo -e "${BOLD}${GREEN}=======================================================================${RESET}"
 echo -e "  ${DIM}Logs available in : ${LOG_DIR}/${RESET}"
 echo -e "  ${DIM}To stop services  : ./stop.sh${RESET}"
-echo -e "${BOLD}${GREEN}==================================================${RESET}"
+echo -e "${BOLD}${GREEN}=======================================================================${RESET}"
 echo ""

@@ -109,7 +109,7 @@ export function TechnicianDashboard({ user }: { user: User }) {
         description={`Welcome back, ${user.firstName}. Ready for field operations.`}
         actions={<DashboardClock />}
       >
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-10">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6 mb-6 sm:mb-10 w-full">
           {statCards.map((stat) => (
             <StatCard key={stat.title} {...stat} />
           ))}

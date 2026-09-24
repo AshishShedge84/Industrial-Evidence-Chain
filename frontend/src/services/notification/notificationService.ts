@@ -60,6 +60,11 @@ export const notificationService = {
       if (seen.has(notif.id)) continue;
       seen.add(notif.id);
 
+      // STRICT USER ISOLATION: Never display another user's notifications
+      if (notif.recipientId && notif.recipientId !== userId && notif.recipientId !== 'all') {
+        continue;
+      }
+
       if (clearedIds.has(notif.id)) continue;
 
       filtered.push({
@@ -75,69 +80,41 @@ export const notificationService = {
     return this.getNotificationsForUser(userId, role).filter((n) => !n.read).length;
   },
 
+  clearCache(): void {
+    cachedNotifications = [];
+  },
+
   async syncRealEvents(userId: string, role?: string): Promise<Notification[]> {
     if (isSyncing) return this.getNotificationsForUser(userId, role);
     isSyncing = true;
 
     try {
-      const res = await apiClient.get<{ items: any[]; total: number }>('/evidence?pageSize=25');
-      if (res.success && res.data?.items) {
-        const events: Notification[] = [];
+      const res = await apiClient.get<any[]>('/notifications');
+      if (res.success && res.data) {
+        const events: Notification[] = res.data.map((item: any) => {
+          let badgeType: 'alert' | 'success' | 'info' | 'message' = 'info';
+          if (item.type === 'VerificationRequest') badgeType = 'alert';
+          else if (item.type === 'EvidenceVerified') badgeType = 'success';
+          else if (item.type === 'VerificationFailed') badgeType = 'alert';
 
-        for (const item of res.data.items) {
-          const evidenceId = item.evidenceId;
-          const assetName = item.assetName || 'Industrial Asset';
-          const assetCode = item.assetCode ? ` (${item.assetCode})` : '';
-          const techName = item.userName || 'Technician';
+          const isEvidence = item.type === 'VerificationRequest' || item.type === 'EvidenceVerified' || item.type === 'VerificationFailed';
 
-          if (item.verificationStatus === 'PENDING_VERIFICATION') {
-            events.push({
-              id: `notif-pending-${evidenceId}`,
-              recipientId: 'all',
-              senderId: item.userId,
-              senderName: techName,
-              title: 'Evidence Pending Verification',
-              message: `${assetName}${assetCode} evidence submitted by ${techName}. Awaiting Manager cryptographic review.`,
-              type: 'alert',
-              read: false,
-              createdAt: item.createdAt || item.timestamp,
-              relatedEntity: 'evidence',
-              relatedEntityId: evidenceId,
-              actionUrl: `/evidence/${evidenceId}`,
-            });
-          } else if (item.verificationStatus === 'VERIFIED') {
-            events.push({
-              id: `notif-verified-${evidenceId}`,
-              recipientId: 'all',
-              senderId: 'manager',
-              senderName: item.verifiedBy || 'Manager',
-              title: 'Integrity Match Verified',
-              message: `${assetName}${assetCode} passed cryptographic hash comparison against Hyperledger Fabric ledger anchor.`,
-              type: 'success',
-              read: false,
-              createdAt: item.verifiedAt || item.createdAt,
-              relatedEntity: 'evidence',
-              relatedEntityId: evidenceId,
-              actionUrl: `/evidence/${evidenceId}`,
-            });
-          } else if (item.verificationStatus === 'INTEGRITY_MISMATCH') {
-            events.push({
-              id: `notif-mismatch-${evidenceId}`,
-              recipientId: 'all',
-              senderId: 'system',
-              senderName: 'Blockchain Sentinel',
-              title: 'CRITICAL: Integrity Mismatch',
-              message: `Cryptographic tampering or mismatch detected for ${assetName}${assetCode}. Anchor hash does not match live state.`,
-              type: 'alert',
-              read: false,
-              createdAt: item.verifiedAt || item.createdAt,
-              relatedEntity: 'evidence',
-              relatedEntityId: evidenceId,
-              actionUrl: `/evidence/${evidenceId}`,
-            });
-          }
-        }
-
+          return {
+            id: item.notificationId,
+            recipientId: item.userId,
+            title: item.title,
+            message: item.message,
+            type: badgeType,
+            read: item.isRead,
+            createdAt: item.createdAt,
+            relatedEntity: isEvidence ? 'evidence' : 'asset',
+            relatedEntityId: item.relatedEntityId,
+            actionUrl: isEvidence
+              ? `/evidence/${item.relatedEntityId}`
+              : item.relatedEntityId ? `/assets/${item.relatedEntityId}` : undefined,
+            senderName: item.type === 'VerificationRequest' ? 'Field Technician' : 'IEC Ledger Engine'
+          };
+        });
         cachedNotifications = events;
       }
     } catch {
@@ -162,33 +139,41 @@ export const notificationService = {
     return newNotification;
   },
 
-  markAsRead(id: string, userId?: string): void {
-    if (userId) {
-      const readKey = `iec_read_notifications_${userId}`;
-      const existing = getStoredArray(readKey);
-      if (!existing.includes(id)) {
-        existing.push(id);
-        setStoredArray(readKey, existing);
-      }
-    }
-
+  async markAsRead(id: string, userId?: string): Promise<void> {
     const found = cachedNotifications.find((n) => n.id === id);
     if (found) {
       found.read = true;
     }
+    if (userId) {
+      const readKey = `iec_read_notifications_${userId}`;
+      const existing = new Set(getStoredArray(readKey));
+      existing.add(id);
+      setStoredArray(readKey, Array.from(existing));
+    }
+    try {
+      await apiClient.patch(`/notifications/${id}/read`, {});
+    } catch {
+      // Ignore
+    }
   },
 
-  markAllAsRead(userId: string): void {
+  async markAllAsRead(userId: string): Promise<void> {
+    cachedNotifications.forEach((n) => {
+      if (!n.recipientId || n.recipientId === userId || n.recipientId === 'all') {
+        n.read = true;
+      }
+    });
     const userNotifs = this.getNotificationsForUser(userId);
     const readKey = `iec_read_notifications_${userId}`;
     const existing = new Set(getStoredArray(readKey));
-
-    userNotifs.forEach((n) => {
-      existing.add(n.id);
-      n.read = true;
-    });
-
+    userNotifs.forEach((n) => existing.add(n.id));
     setStoredArray(readKey, Array.from(existing));
+
+    try {
+      await apiClient.patch(`/notifications/read-all`, {});
+    } catch {
+      // Ignore
+    }
   },
 
   clearAll(userId: string): void {

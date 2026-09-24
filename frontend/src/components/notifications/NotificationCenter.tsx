@@ -123,6 +123,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
 
         {/* Notification Card / Popover */}
         <motion.div
+          data-notification-center="true"
           initial={{ opacity: 0, y: 8, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 6, scale: 0.98 }}

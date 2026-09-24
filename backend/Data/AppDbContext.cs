@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<BlockchainProof> BlockchainProofs => Set<BlockchainProof>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -142,6 +143,10 @@ public class AppDbContext : DbContext
                 .HasColumnName("asset_code")
                 .HasColumnType("text")
                 .IsRequired();
+            entity.Property(e => e.QrIdentifier)
+                .HasColumnName("qr_identifier")
+                .HasColumnType("text")
+                .IsRequired();
             entity.Property(e => e.Category)
                 .HasColumnName("category")
                 .HasColumnType("text")
@@ -174,6 +179,7 @@ public class AppDbContext : DbContext
                 .HasColumnType("timestamp with time zone");
 
             entity.HasIndex(e => e.AssetCode).IsUnique().HasDatabaseName("ix_assets_asset_code");
+            entity.HasIndex(e => e.QrIdentifier).IsUnique().HasDatabaseName("ix_assets_qr_identifier");
             entity.HasIndex(e => e.Category).HasDatabaseName("ix_assets_category");
             entity.HasIndex(e => e.Status).HasDatabaseName("ix_assets_status");
             entity.HasIndex(e => e.AssignedToUserId).HasDatabaseName("ix_assets_assigned_to_user_id");
@@ -440,6 +446,70 @@ public class AppDbContext : DbContext
 
             entity.HasOne(e => e.User)
                 .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Notifications ─────────────────────────────────────────────────────
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnType("uuid")
+                .HasColumnName("id")
+                .HasDefaultValueSql("gen_random_uuid()");
+            
+            entity.Property(e => e.UserId)
+                .HasColumnType("uuid")
+                .HasColumnName("user_id")
+                .IsRequired();
+
+            entity.Property(e => e.Type)
+                .HasColumnName("type")
+                .HasColumnType("text")
+                .IsRequired();
+
+            entity.Property(e => e.Title)
+                .HasColumnName("title")
+                .HasColumnType("text")
+                .IsRequired();
+
+            entity.Property(e => e.Message)
+                .HasColumnName("message")
+                .HasColumnType("text")
+                .IsRequired();
+
+            entity.Property(e => e.IsRead)
+                .HasColumnName("is_read")
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.ReadAt)
+                .HasColumnName("read_at")
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.EntityType)
+                .HasColumnName("entity_type")
+                .HasColumnType("text");
+
+            entity.Property(e => e.EntityId)
+                .HasColumnName("entity_id")
+                .HasColumnType("uuid");
+
+            entity.Property(e => e.Metadata)
+                .HasColumnName("metadata")
+                .HasColumnType("jsonb");
+
+            entity.HasIndex(e => e.UserId).HasDatabaseName("ix_notifications_user_id");
+            entity.HasIndex(e => e.IsRead).HasDatabaseName("ix_notifications_is_read");
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Notifications)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

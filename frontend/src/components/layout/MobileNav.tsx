@@ -42,7 +42,7 @@ export function MobileNav({ onClose }: MobileNavProps) {
 
       <aside
         className={`fixed inset-y-0 right-0 z-50 w-72 max-w-[85vw] bg-white dark:bg-[#0B0F17] border-l border-gray-100 dark:border-white/10 shadow-2xl lg:hidden transform transition-transform duration-300 ease-out ${
-          mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          mobileMenuOpen ? 'translate-x-0' : 'translate-x-full invisible pointer-events-none'
         }`}
         aria-label="Mobile navigation"
       >

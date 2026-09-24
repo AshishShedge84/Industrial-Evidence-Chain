@@ -11,7 +11,7 @@ export function AssistantLauncher() {
     <AnimatePresence>
       {!isOpen && (
         <motion.button
-          className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 z-40 w-[60px] h-[60px] lg:w-[72px] lg:h-[72px] rounded-full bg-white/10 dark:bg-black/20 backdrop-blur-md shadow-2xl border border-white/20 dark:border-white/10 flex items-center justify-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary-500/50"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 lg:bottom-8 lg:right-8 z-40 w-[52px] h-[52px] sm:w-[60px] sm:h-[60px] lg:w-[72px] lg:h-[72px] rounded-full bg-white/10 dark:bg-black/20 backdrop-blur-md shadow-2xl border border-white/20 dark:border-white/10 flex items-center justify-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary-500/50"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           onFocus={() => setIsHovered(true)}

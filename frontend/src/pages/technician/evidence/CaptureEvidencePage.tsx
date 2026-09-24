@@ -366,7 +366,7 @@ export function CaptureEvidencePage() {
   };
 
   return (
-    <div className="space-y-12 pb-16">
+    <div className="w-full min-w-0 overflow-x-hidden space-y-8 sm:space-y-12 pb-24 sm:pb-20">
       <PageContainer
         title="Capture Evidence"
         description="Guided 7-step industrial workflow for verified evidence collection."
@@ -376,14 +376,14 @@ export function CaptureEvidencePage() {
           { label: `Step ${currentStep}: ${STEPS[currentStep - 1]?.title}` },
         ]}
       >
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto min-w-0 w-full">
           {/* Step Indicator */}
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+          <div className="mb-6 sm:mb-10">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+              <span className="text-[11px] sm:text-[12px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest truncate">
                 Step {currentStep} of 7: {STEPS[currentStep - 1]?.title}
               </span>
-              <span className="text-[12px] font-mono font-medium text-gray-400">
+              <span className="text-[11px] sm:text-[12px] font-mono font-medium text-gray-400 shrink-0 ml-2">
                 {Math.round((currentStep / 7) * 100)}% Completed
               </span>
             </div>
@@ -412,7 +412,7 @@ export function CaptureEvidencePage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2 }}
-              className="bg-white/80 dark:bg-[#0F1218]/80 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-[32px] p-6 sm:p-10 shadow-sm mb-8"
+              className="w-full min-w-0 bg-white/80 dark:bg-[#0F1218]/80 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-[24px] sm:rounded-[32px] p-4 sm:p-8 md:p-10 shadow-sm mb-8 overflow-hidden"
             >
               {/* STEP 1: Select Asset */}
               {currentStep === 1 && (
@@ -433,7 +433,7 @@ export function CaptureEvidencePage() {
                   <div className="text-center pt-2">
                     <Button
                       size="lg"
-                      className="w-full sm:w-auto min-w-[220px] rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-600/20"
+                      className="w-full sm:w-auto min-w-0 sm:min-w-[220px] rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-600/20"
                       onClick={() => setIsQRScannerOpen(true)}
                     >
                       <QrCode className="h-5 w-5 mr-2" />
@@ -460,24 +460,24 @@ export function CaptureEvidencePage() {
                     <label className="block text-[13px] font-semibold text-gray-700 dark:text-gray-300">
                       Search Asset ID or Asset Tag
                     </label>
-                    <div className="flex gap-3">
-                      <div className="relative flex-1">
+                    <div className="flex gap-2 sm:gap-3">
+                      <div className="relative flex-1 min-w-0">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                         <input
                           id="asset-query-input"
                           type="text"
-                          placeholder="e.g. SENS-9941, HVAC-8092, CONV-5510..."
+                          placeholder="e.g. SENS-9941, HVAC-8092..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleResolveAsset(searchQuery);
                           }}
-                          className="w-full pl-11 pr-4 py-3 bg-gray-50/70 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-sm text-gray-900 dark:text-white"
+                          className="w-full pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-gray-50/70 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-xs sm:text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                       <Button
                         variant="secondary"
-                        className="rounded-2xl px-6"
+                        className="rounded-2xl px-3.5 sm:px-6 text-xs sm:text-sm shrink-0"
                         onClick={() => handleResolveAsset(searchQuery)}
                         disabled={isSearching || !searchQuery.trim()}
                       >
@@ -539,27 +539,27 @@ export function CaptureEvidencePage() {
                     </p>
                   </div>
 
-                  <div className="p-6 rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 space-y-4">
-                    <div className="flex items-center justify-between pb-4 border-b border-black/5 dark:border-white/10">
-                      <div className="flex items-center gap-4">
-                        <div className="h-14 w-14 rounded-2xl bg-gray-900 text-white flex items-center justify-center">
-                          <Box className="h-7 w-7" />
+                  <div className="p-4 sm:p-6 rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 space-y-4">
+                    <div className="flex items-start sm:items-center justify-between gap-3 pb-4 border-b border-black/5 dark:border-white/10">
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div className="h-11 w-11 sm:h-14 sm:w-14 rounded-2xl bg-gray-900 text-white flex items-center justify-center shrink-0">
+                          <Box className="h-5 w-5 sm:h-7 sm:w-7" />
                         </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        <div className="min-w-0">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">
                             {selectedAsset.name}
                           </h3>
-                          <p className="text-sm font-mono text-primary-600 dark:text-primary-400">
+                          <p className="text-xs sm:text-sm font-mono text-primary-600 dark:text-primary-400">
                             {selectedAsset.assetTag}
                           </p>
                         </div>
                       </div>
-                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 text-xs font-bold uppercase">
+                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 text-[11px] sm:text-xs font-bold uppercase shrink-0">
                         {selectedAsset.status}
                       </Badge>
                     </div>
 
-                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                       <div>
                         <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Category
@@ -572,7 +572,7 @@ export function CaptureEvidencePage() {
                         <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Asset ID (GUID)
                         </dt>
-                        <dd className="font-mono text-xs text-gray-600 dark:text-gray-400 mt-0.5 break-all">
+                        <dd className="font-mono text-xs text-gray-600 dark:text-gray-400 mt-0.5 break-all [overflow-wrap:anywhere]">
                           {selectedAsset.id}
                         </dd>
                       </div>
@@ -581,8 +581,8 @@ export function CaptureEvidencePage() {
                           <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                             Location Site
                           </dt>
-                          <dd className="font-medium text-gray-800 dark:text-gray-200 mt-0.5 flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                          <dd className="font-medium text-gray-800 dark:text-gray-200 mt-0.5 flex items-center gap-1.5 break-words">
+                            <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                             {selectedAsset.location.site}
                           </dd>
                         </div>
@@ -598,26 +598,25 @@ export function CaptureEvidencePage() {
                     </dl>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 pt-4">
                     <Button
                       variant="outline"
-                      className="w-full sm:w-auto rounded-xl"
+                      className="h-10 sm:h-11 px-4 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl w-full sm:w-auto"
                       onClick={() => setCurrentStep(1)}
                     >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
                       Select Different Asset
                     </Button>
                     <Button
                       id="confirm-asset-btn"
-                      size="lg"
-                      className="w-full sm:w-auto rounded-xl bg-primary-600 hover:bg-primary-700 text-white"
+                      className="h-10 sm:h-11 px-5 sm:px-6 text-xs sm:text-sm font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white w-full sm:w-auto shadow-sm"
                       onClick={() => {
                         setCapturedAt(new Date());
                         setCurrentStep(3);
                       }}
                     >
                       Confirm Asset & Continue
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                     </Button>
                   </div>
                 </div>
@@ -698,18 +697,22 @@ export function CaptureEvidencePage() {
                     />
                   </div>
 
-                  <div className="flex justify-between items-center pt-4">
-                    <Button variant="outline" className="rounded-xl" onClick={() => setCurrentStep(2)}>
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                  <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2.5 sm:gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl shrink-0"
+                      onClick={() => setCurrentStep(2)}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" /> Back
                     </Button>
                     <Button
                       id="continue-to-location-btn"
-                      className="rounded-xl bg-primary-600 text-white"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl bg-primary-600 hover:bg-primary-700 text-white"
                       disabled={!activityType || !description.trim()}
                       onClick={() => setCurrentStep(4)}
                     >
                       Continue to Location
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                     </Button>
                   </div>
                 </div>
@@ -734,34 +737,34 @@ export function CaptureEvidencePage() {
                     }}
                     role="button"
                     tabIndex={0}
-                    className={`p-6 rounded-2xl border transition-all ${
+                    className={`p-4 sm:p-6 rounded-2xl border transition-all ${
                       location
                         ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-800'
                         : 'bg-gray-50/50 dark:bg-white/[0.02] border-black/5 dark:border-white/10 hover:border-black/20 cursor-pointer'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-start sm:items-center gap-3 sm:gap-4">
                       <div
-                        className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                        className={`h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 ${
                           location
                             ? 'bg-emerald-500 text-white'
                             : 'bg-gray-100 dark:bg-white/10 text-gray-500'
                         }`}
                       >
                         {isGettingLocation ? (
-                          <Loader2 className="h-6 w-6 animate-spin" />
+                          <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
                         ) : location ? (
-                          <Check className="h-6 w-6" />
+                          <Check className="h-5 w-5 sm:h-6 sm:w-6" />
                         ) : (
-                          <MapPin className="h-6 w-6" />
+                          <MapPin className="h-5 w-5 sm:h-6 sm:w-6" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 dark:text-white text-base">
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base break-words">
                           {location ? location.address : 'Fetch Current GPS Location'}
                         </p>
                         {location ? (
-                          <p className="text-xs font-mono text-gray-600 dark:text-gray-400 mt-1">
+                          <p className="text-xs font-mono text-gray-600 dark:text-gray-400 mt-1 break-all [overflow-wrap:anywhere]">
                             LAT: {location.latitude.toFixed(6)} | LNG: {location.longitude.toFixed(6)} (±
                             {location.accuracy?.toFixed(1)}m)
                           </p>
@@ -772,7 +775,7 @@ export function CaptureEvidencePage() {
                         )}
                       </div>
                       {!location && !isGettingLocation && (
-                        <Button size="sm" variant="secondary" className="rounded-xl">
+                        <Button size="sm" variant="secondary" className="rounded-xl shrink-0 text-xs px-2.5 sm:px-3">
                           Fetch GPS
                         </Button>
                       )}
@@ -780,24 +783,28 @@ export function CaptureEvidencePage() {
                   </div>
 
                   {locationError && (
-                    <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 text-rose-700 dark:text-rose-300 text-sm flex items-center gap-2">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 text-rose-700 dark:text-rose-300 text-xs sm:text-sm flex items-center gap-2">
                       <AlertCircle className="h-4 w-4 shrink-0" />
-                      {locationError}
+                      <span className="break-words">{locationError}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center pt-4">
-                    <Button variant="outline" className="rounded-xl" onClick={() => setCurrentStep(3)}>
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                  <div className="flex items-center justify-between gap-2.5 sm:gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl shrink-0"
+                      onClick={() => setCurrentStep(3)}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" /> Back
                     </Button>
                     <Button
                       id="continue-to-media-btn"
-                      className="rounded-xl bg-primary-600 text-white"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl bg-primary-600 hover:bg-primary-700 text-white"
                       disabled={!location}
                       onClick={() => setCurrentStep(5)}
                     >
                       Continue to Media Capture
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                     </Button>
                   </div>
                 </div>
@@ -901,7 +908,7 @@ export function CaptureEvidencePage() {
                         </span>
                         <span className="text-xs text-emerald-600 font-medium">Ready for review</span>
                       </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3">
                         {capturedFiles.map((file, idx) => (
                           <div
                             key={idx}
@@ -931,13 +938,17 @@ export function CaptureEvidencePage() {
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center pt-4">
-                    <Button variant="outline" className="rounded-xl" onClick={() => setCurrentStep(4)}>
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                  <div className="flex items-center justify-between gap-2.5 sm:gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl shrink-0"
+                      onClick={() => setCurrentStep(4)}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" /> Back
                     </Button>
                     <Button
                       id="continue-to-review-btn"
-                      className="rounded-xl bg-primary-600 text-white"
+                      className="h-10 sm:h-11 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl bg-primary-600 hover:bg-primary-700 text-white"
                       disabled={capturedFiles.length === 0}
                       onClick={() => {
                         stopCamera();
@@ -945,7 +956,7 @@ export function CaptureEvidencePage() {
                       }}
                     >
                       Continue to Review
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                     </Button>
                   </div>
                 </div>
@@ -963,27 +974,27 @@ export function CaptureEvidencePage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 p-6 space-y-6">
+                  <div className="rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-black/5 dark:border-white/10 p-4 sm:p-6 space-y-5 sm:space-y-6">
                     {/* Automatic Timestamp */}
-                    <div className="flex items-center gap-3 p-3.5 rounded-xl bg-white dark:bg-black/30 border border-black/5 dark:border-white/10">
-                      <Calendar className="h-5 w-5 text-primary-600" />
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <div className="flex items-center gap-3 p-3 sm:p-3.5 rounded-xl bg-white dark:bg-black/30 border border-black/5 dark:border-white/10">
+                      <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Automatic Capture Timestamp
                         </p>
-                        <p className="text-sm font-mono font-bold text-gray-900 dark:text-white mt-0.5">
+                        <p className="text-xs sm:text-sm font-mono font-bold text-gray-900 dark:text-white mt-0.5 truncate">
                           {formatCapturedDate(capturedAt)}
                         </p>
                       </div>
                     </div>
 
                     {/* Summary Grid */}
-                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-sm">
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 text-xs sm:text-sm">
                       <div>
                         <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Target Asset
                         </dt>
-                        <dd className="font-bold text-gray-900 dark:text-white mt-0.5">
+                        <dd className="font-bold text-gray-900 dark:text-white mt-0.5 break-words">
                           {selectedAsset.name} ({selectedAsset.assetTag})
                         </dd>
                       </div>
@@ -999,9 +1010,9 @@ export function CaptureEvidencePage() {
                         <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           GPS Location
                         </dt>
-                        <dd className="font-medium text-gray-800 dark:text-gray-200 mt-0.5">
+                        <dd className="font-medium text-gray-800 dark:text-gray-200 mt-0.5 break-words [overflow-wrap:anywhere]">
                           {location?.address}
-                          <span className="block font-mono text-xs text-gray-500 mt-0.5">
+                          <span className="block font-mono text-xs text-gray-500 mt-0.5 break-all">
                             {location?.latitude.toFixed(6)}, {location?.longitude.toFixed(6)} (±
                             {location?.accuracy?.toFixed(1)}m)
                           </span>
@@ -1011,7 +1022,7 @@ export function CaptureEvidencePage() {
                         <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                           Observations
                         </dt>
-                        <dd className="text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-wrap bg-white dark:bg-black/20 p-3.5 rounded-xl border border-black/5 dark:border-white/5">
+                        <dd className="text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-white dark:bg-black/20 p-3 sm:p-3.5 rounded-xl border border-black/5 dark:border-white/5">
                           {description}
                         </dd>
                       </div>
@@ -1022,7 +1033,7 @@ export function CaptureEvidencePage() {
                       <dt className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
                         Media Previews ({capturedFiles.length})
                       </dt>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3">
                         {capturedFiles.map((file, idx) => (
                           <div
                             key={idx}
@@ -1042,17 +1053,21 @@ export function CaptureEvidencePage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pt-4">
-                    <Button variant="outline" className="rounded-xl" onClick={() => setCurrentStep(5)}>
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                  <div className="flex items-center justify-between gap-2.5 sm:gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      className="h-10 sm:h-11 px-3 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl shrink-0"
+                      onClick={() => setCurrentStep(5)}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" /> Back
                     </Button>
                     <Button
                       id="proceed-to-confirmation-btn"
-                      className="rounded-xl bg-primary-600 text-white"
+                      className="h-10 sm:h-11 px-3 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shrink-0 shadow-sm"
                       onClick={() => setCurrentStep(7)}
                     >
-                      Proceed to Confirmation
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <span>Proceed to Confirmation</span>
+                      <ArrowRight className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                     </Button>
                   </div>
                 </div>
@@ -1071,14 +1086,14 @@ export function CaptureEvidencePage() {
                     </p>
                   </div>
 
-                  <div className="p-6 rounded-2xl bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 space-y-4">
+                  <div className="p-4 sm:p-6 rounded-2xl bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 space-y-4">
                     <div className="flex items-start gap-3">
-                      <ShieldCheck className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                      <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-200">
                           Cryptographic Ledger Immutability
                         </p>
-                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                        <p className="text-[11px] sm:text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                           By submitting, you affirm under industrial audit standards that the captured media and observation
                           represent true conditions at the anchored timestamp. This record cannot be altered or edited
                           after submission.
@@ -1086,47 +1101,48 @@ export function CaptureEvidencePage() {
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-amber-200/60 dark:border-amber-800/30">
-                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <div className="pt-3 sm:pt-4 border-t border-amber-200/60 dark:border-amber-800/30">
+                      <label className="flex items-start sm:items-center gap-2.5 sm:gap-3 cursor-pointer select-none">
                         <input
                           id="final-confirm-checkbox"
                           type="checkbox"
                           checked={isConfirmed}
                           onChange={(e) => setIsConfirmed(e.target.checked)}
-                          className="h-5 w-5 rounded-lg text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-700 cursor-pointer"
+                          className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 sm:mt-0 rounded text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-700 cursor-pointer shrink-0"
                         />
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white leading-snug">
                           I confirm that the above evidence is correct and ready for submission.
                         </span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pt-4">
+                  <div className="flex items-center justify-between gap-2.5 sm:gap-3 pt-4">
                     <Button
                       variant="outline"
-                      className="rounded-xl"
+                      className="h-10 sm:h-11 px-3 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl shrink-0"
                       disabled={submissionState.status === 'loading'}
                       onClick={() => setCurrentStep(6)}
                     >
-                      <ArrowLeft className="h-4 w-4 mr-2" /> Back to Review
+                      <ArrowLeft className="h-4 w-4 mr-1.5 sm:mr-2 shrink-0" />
+                      <span className="hidden xs:inline">Back to Review</span>
+                      <span className="xs:hidden">Back</span>
                     </Button>
                     <Button
                       id="final-submit-evidence-btn"
-                      size="lg"
-                      className="rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold px-8 shadow-md shadow-primary-600/20"
+                      className="h-10 sm:h-11 px-4 sm:px-8 text-xs sm:text-sm font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-600/20 shrink-0"
                       disabled={!isConfirmed || submissionState.status === 'loading'}
                       onClick={handleFinalSubmit}
                     >
                       {submissionState.status === 'loading' ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Loader2 className="h-4 w-4 animate-spin mr-1.5 sm:mr-2 shrink-0" />
                           Submitting...
                         </>
                       ) : (
                         <>
                           Submit Evidence
-                          <Check className="h-4 w-4 ml-2" />
+                          <Check className="h-4 w-4 ml-1.5 sm:ml-2 shrink-0" />
                         </>
                       )}
                     </Button>

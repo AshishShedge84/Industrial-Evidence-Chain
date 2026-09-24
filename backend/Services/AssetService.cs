@@ -17,11 +17,13 @@ public class AssetService : IAssetService
 {
     private readonly AppDbContext _db;
     private readonly IAuditLogService _auditLogs;
+    private readonly INotificationService _notificationService;
 
-    public AssetService(AppDbContext db, IAuditLogService auditLogs)
+    public AssetService(AppDbContext db, IAuditLogService auditLogs, INotificationService notificationService)
     {
         _db = db;
         _auditLogs = auditLogs;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResult<AssetDto>> GetAssetsAsync(
@@ -43,6 +45,7 @@ public class AssetService : IAssetService
         {
             var term = query.Trim().ToLower();
             q = q.Where(a => a.AssetCode.ToLower().Contains(term) ||
+                             a.QrIdentifier.ToLower().Contains(term) ||
                              a.Name.ToLower().Contains(term) ||
                              (a.Description != null && a.Description.ToLower().Contains(term)));
         }
@@ -98,9 +101,10 @@ public class AssetService : IAssetService
 
     public async Task<AssetDto?> GetAssetByIdAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
+        var assetIdString = assetId.ToString();
         var asset = await _db.Assets
             .AsNoTracking()
-            .SingleOrDefaultAsync(a => a.AssetId == assetId, cancellationToken);
+            .FirstOrDefaultAsync(a => a.AssetId == assetId || a.QrIdentifier == assetIdString, cancellationToken);
 
         return asset == null ? null : MapToDto(asset);
     }
@@ -150,11 +154,24 @@ public class AssetService : IAssetService
             CreatedByUserId = createdByUserId,
             AssignedToUserId = request.AssignedTo,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = null
+            UpdatedAt = null,
+            QrIdentifier = Guid.NewGuid().ToString()
         };
 
         _db.Assets.Add(asset);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (asset.AssignedToUserId != Guid.Empty)
+        {
+            await _notificationService.CreateNotificationAsync(
+                asset.AssignedToUserId,
+                "Asset Assigned",
+                $"You have been assigned to a new asset: {asset.Name} ({asset.AssetCode})",
+                "AssetAssigned",
+                asset.AssetId,
+                cancellationToken
+            );
+        }
 
         // 4. Record audit log
         await _auditLogs.LogAsync(
@@ -230,7 +247,18 @@ public class AssetService : IAssetService
             {
                 throw new ValidationException($"Assigned user with ID '{request.AssignedTo.Value}' does not exist.");
             }
-            asset.AssignedToUserId = request.AssignedTo.Value;
+            if (asset.AssignedToUserId != request.AssignedTo.Value) {
+                asset.AssignedToUserId = request.AssignedTo.Value;
+                // Send notification to the assignee
+                await _notificationService.CreateNotificationAsync(
+                    request.AssignedTo.Value,
+                    "Asset Assigned",
+                    $"You have been assigned to asset: {asset.Name} ({asset.AssetCode})",
+                    "AssetAssigned",
+                    asset.AssetId,
+                    cancellationToken
+                );
+            }
         }
 
         asset.UpdatedAt = DateTime.UtcNow;
@@ -383,7 +411,7 @@ public class AssetService : IAssetService
             Status = asset.Status.ToString(),
             Location = locationDto,
             Specifications = specsElement,
-            QrCode = asset.AssetCode,
+            QrCode = asset.QrIdentifier,
             CreatedAt = asset.CreatedAt,
             UpdatedAt = asset.UpdatedAt,
             CreatedBy = asset.CreatedByUserId,

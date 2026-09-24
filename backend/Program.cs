@@ -152,6 +152,7 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAssetService, AssetService>();
 builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<IBlockchainAdapter, MockBlockchainAdapter>();

@@ -77,14 +77,13 @@ if not exist "%ROOT%\tools\db-preview\node_modules" (
 
 :: ── 4. Prompt for PostgreSQL password securely (hidden input)
 set "DB_PASSWORD="
-echo|set /p="PostgreSQL password: "
+echo|set /p="PostgreSQL password (default 'postgres'): "
 for /f "delims=" %%p in ('powershell -NoProfile -Command "$p = Read-Host -AsSecureString; if ($p) { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p)) }"') do set "DB_PASSWORD=%%p"
 echo.
 
 if "!DB_PASSWORD!"=="" (
-  echo PostgreSQL authentication failed.
-  echo IEC startup cancelled.
-  goto :cancel_exit
+  echo   [WARN] Password empty, defaulting to 'postgres'.
+  set "DB_PASSWORD=postgres"
 )
 
 :: ── 5. PostgreSQL Cluster Verification & Startup (Port 5433)

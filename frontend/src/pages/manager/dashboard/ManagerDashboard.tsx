@@ -144,7 +144,7 @@ export function ManagerDashboard({ user }: { user: User }) {
         actions={<DashboardClock />}
       >
         {/* Top Metric Cards — All Clickable and Role-Specific */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6 mb-6 sm:mb-10">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6 mb-6 sm:mb-10 w-full">
           {statCards.map((stat) => (
             <StatCard key={stat.title} {...stat} />
           ))}

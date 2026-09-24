@@ -495,7 +495,7 @@ export function VerificationPage() {
       title="Verification Center"
       description="Review submitted evidence and confirm integrity before operational acceptance."
     >
-      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-16">
+      <div className="max-w-7xl mx-auto w-full min-w-0 space-y-6 sm:space-y-8 pb-16">
         {/* Top Summary Area — Real Backend Counters */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {/* 1. Pending Verification Card */}

@@ -24,6 +24,7 @@ import {
   Radio,
   FileCheck
 } from 'lucide-react';
+import { QRCodeDisplay } from '@components/qr/QRCodeDisplay';
 import type { Evidence, EvidenceStatus, ActivityType } from '@type-defs/evidence';
 import type { Asset } from '@type-defs/asset';
 import { ACTIVITY_TYPE_LABELS } from '@constants/activityTypes';
@@ -283,7 +284,7 @@ export function EvidenceDetailsPage() {
     : rawHash;
 
   return (
-    <div className="space-y-8 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="space-y-6 sm:space-y-8 pb-24 sm:pb-20 max-w-7xl mx-auto w-full min-w-0 px-0 sm:px-6 lg:px-8">
       {/* Back link & breadcrumb indicator */}
       <div className="flex items-center justify-between pt-2">
         <button
@@ -349,7 +350,7 @@ export function EvidenceDetailsPage() {
         <div className="lg:col-span-8 space-y-8">
           
           {/* Core Technical Details & Observations */}
-          <section className="bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[28px] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] space-y-6">
+          <section className="bg-white/70 dark:bg-[#0B0F17]/70 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-[24px] sm:rounded-[28px] p-4 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] space-y-5 sm:space-y-6">
             <div className="flex items-center justify-between border-b border-black/5 dark:border-white/10 pb-4">
               <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">
                 Activity Observations & Technical Log
@@ -491,48 +492,49 @@ export function EvidenceDetailsPage() {
 
           {/* Blockchain Cryptographic Proof Card */}
           {evidence.blockchainProof && (
-            <section className="relative overflow-hidden rounded-[28px] bg-gray-900 dark:bg-[#070A0F] border border-gray-800 dark:border-white/10 p-6 sm:p-8 text-gray-300 shadow-xl space-y-6">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <section className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] bg-gray-900 dark:bg-[#070A0F] border border-gray-800 dark:border-white/10 p-4 sm:p-8 text-gray-300 shadow-xl space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-800 pb-5">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5 sm:mt-0">
                     <Lock className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white tracking-tight">
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight leading-snug">
                       Blockchain Cryptographic Proof
                     </h3>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
                       Anchored to Hyperledger Fabric distributed state database
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-2">
                   <button
                     onClick={handleExportJSON}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono font-medium transition-colors border border-white/10"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-mono font-medium transition-colors border border-white/10 shrink-0"
                     title="Export Complete JSON Forensic Record"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <Download className="w-3.5 h-3.5 shrink-0" />
                     <span>Export JSON</span>
                   </button>
-                  <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 sm:py-1 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                     Proof Anchored
                   </span>
                 </div>
               </div>
 
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs font-mono">
+                <div className="p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/5 overflow-hidden">
                   <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
                     Transaction ID
                   </dt>
-                  <dd className="text-gray-100 break-all select-all font-semibold">
+                  <dd className="text-gray-100 font-semibold break-all select-all [overflow-wrap:anywhere] leading-relaxed">
                     {evidence.blockchainProof.transactionId}
                   </dd>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <div className="p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/5 overflow-hidden">
                   <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
                     Block Height
                   </dt>
@@ -541,16 +543,16 @@ export function EvidenceDetailsPage() {
                   </dd>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <div className="p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/5 overflow-hidden">
                   <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
                     Channel & Network
                   </dt>
-                  <dd className="text-gray-100 font-semibold">
+                  <dd className="text-gray-100 font-semibold break-words">
                     {evidence.blockchainProof.network}
                   </dd>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <div className="p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/5 overflow-hidden">
                   <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
                     Anchoring Timestamp
                   </dt>
@@ -559,11 +561,11 @@ export function EvidenceDetailsPage() {
                   </dd>
                 </div>
 
-                <div className="sm:col-span-2 p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <div className="sm:col-span-2 p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/5 overflow-hidden">
                   <dt className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">
                     Merkle Root
                   </dt>
-                  <dd className="text-emerald-300 break-all select-all text-[11px]">
+                  <dd className="text-emerald-300 font-semibold break-all select-all text-[11px] sm:text-xs [overflow-wrap:anywhere] leading-relaxed">
                     {evidence.blockchainProof.merkleRoot}
                   </dd>
                 </div>
@@ -646,10 +648,8 @@ export function EvidenceDetailsPage() {
         size="sm"
       >
         <div className="flex flex-col items-center gap-6 py-4">
-          <div className="p-6 bg-white rounded-2xl border border-gray-100 shadow-md">
-            <div className="w-48 h-48 bg-gray-950 rounded-xl flex items-center justify-center p-4">
-              <QrCode className="w-32 h-32 text-white" />
-            </div>
+          <div className="flex justify-center mb-2">
+            <QRCodeDisplay value={evidence.evidenceId} size={200} />
           </div>
           <div className="text-center w-full space-y-1">
             <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">

@@ -7,6 +7,7 @@ import { BrandMark } from '@components/ui/BrandMark';
 import { UserAvatar } from '@components/ui/UserAvatar';
 import { NotificationCenter } from '@components/notifications/NotificationCenter';
 import { useNotifications } from '@hooks/useNotifications';
+import { notificationService } from '@services/notification/notificationService';
 
 export function Header() {
   const { sidebarOpen, setMobileMenuOpen, theme, setTheme } = useApp();
@@ -45,13 +46,18 @@ export function Header() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+      const target = event.target as Element | null;
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(target as Node) &&
+        !target?.closest('[data-notification-center]')
+      ) {
         setNotificationsOpen(false);
       }
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      if (userMenuRef.current && !userMenuRef.current.contains(target as Node)) {
         setUserMenuOpen(false);
       }
-      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(target as Node)) {
         setThemeMenuOpen(false);
       }
     };
@@ -62,6 +68,7 @@ export function Header() {
 
   const handleLogout = async () => {
     try {
+      notificationService.clearCache();
       await logout();
       window.location.href = '/login';
     } catch {

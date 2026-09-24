@@ -32,19 +32,22 @@ public class EvidenceService : IEvidenceService
     private readonly IAuditLogService _auditLogs;
     private readonly IFileStorageService _storageService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly INotificationService _notificationService;
 
     public EvidenceService(
         AppDbContext db,
         IEvidenceHasher hasher,
         IAuditLogService auditLogs,
         IFileStorageService storageService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        INotificationService notificationService)
     {
         _db = db;
         _hasher = hasher;
         _auditLogs = auditLogs;
         _storageService = storageService;
         _serviceProvider = serviceProvider;
+        _notificationService = notificationService;
     }
 
     public async Task<EvidenceDto> CreateEvidenceAsync(
@@ -116,6 +119,18 @@ public class EvidenceService : IEvidenceService
 
         _db.EvidenceRecords.Add(evidence);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (assignedMgrId.HasValue)
+        {
+            await _notificationService.CreateNotificationAsync(
+                assignedMgrId.Value,
+                "Verification Requested",
+                $"New evidence captured for asset {asset.Name} requires your verification.",
+                "VerificationRequest",
+                evidence.EvidenceId,
+                cancellationToken
+            );
+        }
 
         // 6. Record audit event
         await _auditLogs.LogAsync(
@@ -848,6 +863,32 @@ public class EvidenceService : IEvidenceService
             catch
             {
                 // Fallback: verification still returns even if audit logging fails
+            }
+        }
+
+        // Notify technician of verification outcome
+        if (evidence.UserId != Guid.Empty && (userId == null || userId.Value != evidence.UserId))
+        {
+            try
+            {
+                var notifTitle = isValid ? "Evidence Verified" : "Verification Failed";
+                var notifMsg = isValid
+                    ? $"Evidence #{evidence.EvidenceId.ToString()[..8]} was successfully verified and anchored."
+                    : $"Verification failed for evidence #{evidence.EvidenceId.ToString()[..8]}: {resultDto.Error ?? "Integrity mismatch"}.";
+                var notifType = isValid ? "EvidenceVerified" : "VerificationFailed";
+
+                await _notificationService.CreateNotificationAsync(
+                    evidence.UserId,
+                    notifTitle,
+                    notifMsg,
+                    notifType,
+                    evidence.EvidenceId,
+                    cancellationToken
+                );
+            }
+            catch
+            {
+                // Non-blocking notification dispatch
             }
         }
 
