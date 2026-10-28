@@ -1,0 +1,388 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // 1. users/{userId}
+    //    Fields:
+    //      - id: string (optional, UID matching docId)
+    //      - email: string (required format, max 100 chars)
+    //      - username: string (optional, max 100 chars)
+    //      - fullName, firstName, lastName: string (optional, max 100-200 chars)
+    //      - role: string (Technician | Manager | Auditor | Admin)
+    //      - status: string (active | pending | suspended | rejected)
+    //      - avatarUrl: string (optional, URL max 2000 chars)
+    //      - avatarType: string (optional, 'profile' | 'memoji')
+    //      - selectedMemoji: string (optional, max 100 chars)
+    //      - contactNumber: string (optional, max 50 chars)
+    //      - bio: string (optional, max 1000 chars)
+    //      - authUid: string (optional, max 128 chars)
+    //      - isActive: bool (optional)
+    //      - createdAt, updatedAt: string or timestamp
+    //
+    // 2. assets/{assetId}
+    //    Fields:
+    //      - id / assetTag / asset_code / assetCode: string (max 100 chars)
+    //      - name / asset_name: string (required, 1-200 chars)
+    //      - description: string (optional, max 3000 chars)
+    //      - category: string (Machinery | Equipment | Vehicle | Tool | etc.)
+    //      - status: string (Active | Inactive | Maintenance | Retired | etc.)
+    //      - location: map or string (site, coordinates, etc.)
+    //      - specifications: map or string
+    //      - qrCode: string (optional, max 500 chars)
+    //      - createdBy / created_by_user_id: string (optional, max 128 chars)
+    //      - assignedTo / assigned_to_user_id: string (optional, max 128 chars)
+    //      - createdAt, updatedAt: string or timestamp
+    //
+    // 3. evidence/{evidenceId}
+    //    Fields:
+    //      - evidenceId / evidence_id: string (optional, max 128 chars)
+    //      - assetId / asset_id: string (required, max 128 chars)
+    //      - userId / user_id: string (optional, max 128 chars)
+    //      - activityType / activity_type: string (Maintenance | Inspection | Repair | etc.)
+    //      - timestamp: string or timestamp
+    //      - location: map or string (coordinates, site)
+    //      - description: string (max 5000 chars)
+    //      - mediaReferences / media: list of media objects (max 50 items)
+    //      - status / anchor_status: string (Draft | Submitted | Anchored | Verified | etc.)
+    //      - blockchainProof / proof: map (cryptographic proof details)
+    //      - evidenceHash / evidence_hash: string (SHA-256, max 128 chars)
+    //      - assetName, assetCode, userName, userRole: string (optional, max 200 chars)
+    //      - createdAt, updatedAt, submittedAt, anchoredAt, verifiedAt: string or timestamp
+    //
+    // 4. blockchain_proofs/{proofId}
+    //    Fields:
+    //      - proof_id / proofId: string (optional, max 128 chars)
+    //      - evidence_id / evidenceId: string (max 128 chars)
+    //      - asset_id / assetId: string (max 128 chars)
+    //      - evidence_hash / evidenceHash: string (SHA-256, max 128 chars)
+    //      - transaction_id / transactionId: string (max 128 chars)
+    //      - blockNumber: number (optional)
+    //      - blockHash: string (max 128 chars)
+    //      - merkleRoot: string (max 128 chars)
+    //      - merkleProof: list of strings (max 50 items)
+    //      - network: string (max 200 chars)
+    //      - anchored_at / createdAt: string or timestamp
+    //
+    // 5. notifications/{notifId}
+    //    Fields:
+    //      - id: string (max 128 chars)
+    //      - recipientId: string (max 128 chars)
+    //      - senderId: string (max 128 chars)
+    //      - senderName: string (max 100 chars)
+    //      - title: string (1-200 chars)
+    //      - message: string (max 2000 chars)
+    //      - type: string ('info' | 'message' | 'alert' | 'success')
+    //      - read: bool
+    //      - relatedEntity: string ('asset' | 'evidence' | 'verification' | 'user')
+    //      - relatedEntityId: string (max 128 chars)
+    //      - actionUrl: string (max 500 chars)
+    //      - replied: bool (optional)
+    //      - replyText: string (optional, max 1000 chars)
+    //      - createdAt: string or timestamp
+    //
+    // 6. audit_logs/{logId}
+    //    Fields:
+    //      - audit_log_id / id: string (max 128 chars)
+    //      - user_id / userId: string (max 128 chars)
+    //      - action: string (max 100 chars)
+    //      - entity_type / entityType: string (max 100 chars)
+    //      - entity_id / entityId: string (max 128 chars)
+    //      - details: map or string (JSON details)
+    //      - ip_address / ipAddress: string (max 100 chars)
+    //      - created_at / createdAt: string or timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'Admin' ||
+        request.auth.token.role == 'ADMIN' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators (Applied to both create and update)
+    // ===============================================================
+
+    function isValidUser(data) {
+      let allowed = [
+        'id', 'email', 'username', 'fullName', 'firstName', 'lastName',
+        'role', 'status', 'avatarUrl', 'avatarType', 'selectedMemoji',
+        'contactNumber', 'bio', 'createdAt', 'updatedAt', 'authUid', 'isActive'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 100)) &&
+        (!('username' in data) || (data.username is string && data.username.size() <= 100)) &&
+        (!('firstName' in data) || (data.firstName is string && data.firstName.size() <= 100)) &&
+        (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 100)) &&
+        (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 200)) &&
+        (!('role' in data) || (data.role is string && data.role in ['Technician', 'Manager', 'Auditor', 'Admin', 'technician', 'manager', 'auditor', 'admin'])) &&
+        (!('status' in data) || (data.status is string && data.status in ['active', 'pending', 'suspended', 'rejected', 'Active', 'Pending', 'Suspended', 'Rejected'])) &&
+        (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 2000)) &&
+        (!('avatarType' in data) || (data.avatarType is string && data.avatarType in ['profile', 'memoji'])) &&
+        (!('selectedMemoji' in data) || (data.selectedMemoji is string && data.selectedMemoji.size() <= 100)) &&
+        (!('contactNumber' in data) || (data.contactNumber is string && data.contactNumber.size() <= 50)) &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000)) &&
+        (!('authUid' in data) || (data.authUid is string && data.authUid.size() <= 128)) &&
+        (!('isActive' in data) || (data.isActive is bool));
+    }
+
+    function isValidAsset(data) {
+      let allowed = [
+        'id', 'assetTag', 'asset_code', 'assetCode', 'name', 'asset_name',
+        'description', 'category', 'status', 'location', 'specifications',
+        'qrCode', 'createdAt', 'created_at', 'updatedAt', 'updated_at',
+        'createdBy', 'created_by_user_id', 'assignedTo', 'assigned_to_user_id'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 200)) &&
+        (!('asset_name' in data) || (data.asset_name is string && data.asset_name.size() > 0 && data.asset_name.size() <= 200)) &&
+        (!('assetTag' in data) || (data.assetTag is string && data.assetTag.size() <= 100)) &&
+        (!('asset_code' in data) || (data.asset_code is string && data.asset_code.size() <= 100)) &&
+        (!('assetCode' in data) || (data.assetCode is string && data.assetCode.size() <= 100)) &&
+        (!('category' in data) || (data.category is string && data.category.size() <= 100)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 100)) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 3000)) &&
+        (!('qrCode' in data) || (data.qrCode is string && data.qrCode.size() <= 500)) &&
+        (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 128)) &&
+        (!('created_by_user_id' in data) || (data.created_by_user_id is string && data.created_by_user_id.size() <= 128)) &&
+        (!('assignedTo' in data) || (data.assignedTo is string && data.assignedTo.size() <= 128)) &&
+        (!('assigned_to_user_id' in data) || (data.assigned_to_user_id is string && data.assigned_to_user_id.size() <= 128)) &&
+        (!('location' in data) || (data.location is map || data.location is string)) &&
+        (!('specifications' in data) || (data.specifications is map || data.specifications is string));
+    }
+
+    function isValidEvidence(data) {
+      let allowed = [
+        'evidenceId', 'evidence_id', 'assetId', 'asset_id', 'userId', 'user_id',
+        'activityType', 'activity_type', 'timestamp', 'location', 'description',
+        'mediaReferences', 'media', 'status', 'anchor_status', 'anchorStatus',
+        'blockchainProof', 'proof', 'evidenceHash', 'evidence_hash',
+        'assetName', 'asset_name', 'assetCode', 'asset_code', 'userName', 'user_name',
+        'userRole', 'user_role', 'createdAt', 'created_at', 'updatedAt', 'updated_at',
+        'submittedAt', 'submitted_at', 'anchoredAt', 'anchored_at',
+        'verifiedAt', 'verified_at', 'verificationStatus', 'verification_status',
+        'verifiedBy', 'verified_by', 'assignedManagerId', 'assignedManagerName',
+        'transactionId', 'mediaHashes'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 5000)) &&
+        (!('assetId' in data) || (data.assetId is string && data.assetId.size() <= 128)) &&
+        (!('asset_id' in data) || (data.asset_id is string && data.asset_id.size() <= 128)) &&
+        (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+        (!('user_id' in data) || (data.user_id is string && data.user_id.size() <= 128)) &&
+        (!('activityType' in data) || (data.activityType is string && data.activityType.size() <= 100)) &&
+        (!('activity_type' in data) || (data.activity_type is string && data.activity_type.size() <= 100)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 100)) &&
+        (!('anchor_status' in data) || (data.anchor_status is string && data.anchor_status.size() <= 100)) &&
+        (!('evidenceHash' in data) || (data.evidenceHash is string && data.evidenceHash.size() <= 128)) &&
+        (!('evidence_hash' in data) || (data.evidence_hash is string && data.evidence_hash.size() <= 128)) &&
+        (!('mediaReferences' in data) || (data.mediaReferences is list && data.mediaReferences.size() <= 50)) &&
+        (!('media' in data) || (data.media is list && data.media.size() <= 50)) &&
+        (!('location' in data) || (data.location is map || data.location is string)) &&
+        (!('blockchainProof' in data) || (data.blockchainProof is map)) &&
+        (!('proof' in data) || (data.proof is map));
+    }
+
+    function isValidBlockchainProof(data) {
+      let allowed = [
+        'proof_id', 'proofId', 'evidence_id', 'evidenceId', 'asset_id', 'assetId',
+        'evidence_hash', 'evidenceHash', 'transaction_id', 'transactionId',
+        'signer_identity', 'anchored_at', 'anchoredAt', 'created_at', 'createdAt',
+        'blockNumber', 'blockHash', 'merkleRoot', 'merkleProof', 'timestamp',
+        'network', 'status', 'proofReference'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('transaction_id' in data) || (data.transaction_id is string && data.transaction_id.size() <= 128)) &&
+        (!('transactionId' in data) || (data.transactionId is string && data.transactionId.size() <= 128)) &&
+        (!('evidence_hash' in data) || (data.evidence_hash is string && data.evidence_hash.size() <= 128)) &&
+        (!('evidenceHash' in data) || (data.evidenceHash is string && data.evidenceHash.size() <= 128)) &&
+        (!('blockNumber' in data) || (data.blockNumber is number)) &&
+        (!('blockHash' in data) || (data.blockHash is string && data.blockHash.size() <= 128)) &&
+        (!('merkleRoot' in data) || (data.merkleRoot is string && data.merkleRoot.size() <= 128)) &&
+        (!('merkleProof' in data) || (data.merkleProof is list && data.merkleProof.size() <= 50)) &&
+        (!('network' in data) || (data.network is string && data.network.size() <= 200));
+    }
+
+    function isValidNotification(data) {
+      let allowed = [
+        'id', 'recipientId', 'senderId', 'senderName', 'title', 'message',
+        'type', 'read', 'createdAt', 'relatedEntity', 'relatedEntityId',
+        'actionUrl', 'replied', 'replyText', 'repliedAt', 'clearedBy',
+        'userId', 'entityId'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('title' in data) || (data.title is string && data.title.size() > 0 && data.title.size() <= 200)) &&
+        (!('message' in data) || (data.message is string && data.message.size() <= 2000)) &&
+        (!('type' in data) || (data.type is string && data.type in ['info', 'message', 'alert', 'success'])) &&
+        (!('read' in data) || (data.read is bool)) &&
+        (!('recipientId' in data) || (data.recipientId is string && data.recipientId.size() <= 128)) &&
+        (!('senderId' in data) || (data.senderId is string && data.senderId.size() <= 128)) &&
+        (!('senderName' in data) || (data.senderName is string && data.senderName.size() <= 100)) &&
+        (!('relatedEntity' in data) || (data.relatedEntity is string && data.relatedEntity in ['asset', 'evidence', 'verification', 'user'])) &&
+        (!('relatedEntityId' in data) || (data.relatedEntityId is string && data.relatedEntityId.size() <= 128)) &&
+        (!('actionUrl' in data) || (data.actionUrl is string && data.actionUrl.size() <= 500)) &&
+        (!('replied' in data) || (data.replied is bool)) &&
+        (!('replyText' in data) || (data.replyText is string && data.replyText.size() <= 1000));
+    }
+
+    function isValidAuditLog(data) {
+      let allowed = [
+        'audit_log_id', 'id', 'user_id', 'userId', 'action', 'entity_type',
+        'entityType', 'entity_id', 'entityId', 'details', 'ip_address',
+        'ipAddress', 'created_at', 'createdAt'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        (!('action' in data) || (data.action is string && data.action.size() <= 100)) &&
+        (!('entity_id' in data) || (data.entity_id is string && data.entity_id.size() <= 128)) &&
+        (!('entityId' in data) || (data.entityId is string && data.entityId.size() <= 128)) &&
+        (!('entity_type' in data) || (data.entity_type is string && data.entity_type.size() <= 100)) &&
+        (!('entityType' in data) || (data.entityType is string && data.entityType.size() <= 100)) &&
+        (!('user_id' in data) || (data.user_id is string && data.user_id.size() <= 128)) &&
+        (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+        (!('details' in data) || (data.details is map || data.details is string)) &&
+        (!('ip_address' in data) || (data.ip_address is string && data.ip_address.size() <= 100)) &&
+        (!('ipAddress' in data) || (data.ipAddress is string && data.ipAddress.size() <= 100));
+    }
+
+    // ===============================================================
+    // Industrial Evidence Chain (IEC) Security Rules
+    // ===============================================================
+
+    // 1. User Profiles & Directory: users/{userId}
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) &&
+        (isAdmin() || (request.auth.uid == userId && (
+          !('role' in request.resource.data) || 
+          (request.resource.data.role != 'Admin' && request.resource.data.role != 'ADMIN')
+        )));
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+        (isAdmin() || (
+          request.auth.uid == userId &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'id', 'authUid'])
+        ));
+      allow delete: if isAdmin();
+
+      // User Private Subcollections (Preserved from gadget review app)
+      match /history/{historyId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /saved/{savedId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /notifications/{notifId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // 2. Physical Assets: assets/{assetId}
+    match /assets/{assetId} {
+      // Authenticated users and public verification for QR scan & asset tag lookups
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() && isValidAsset(request.resource.data);
+      allow update: if isAuthenticated() && isValidAsset(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 3. Evidence Records: evidence/{evidenceId}
+    match /evidence/{evidenceId} {
+      // Authenticated users and unauthenticated read for public verification of evidence
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() && isValidEvidence(request.resource.data);
+      allow update: if isAuthenticated() && isValidEvidence(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 4. Blockchain Proofs: blockchain_proofs/{proofId}
+    match /blockchain_proofs/{proofId} {
+      // Cryptographic proofs are verifiable publicly or when authenticated
+      allow read: if isAuthenticated() || true;
+      allow create, update: if isAuthenticated() && isValidBlockchainProof(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 5. System & User Notifications: notifications/{notifId}
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 6. Immutable Audit Trail: audit_logs/{logId}
+    // Append-only audit trail: no updates or deletes permitted
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidAuditLog(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // ===============================================================
+    // Preserved Electronic Gadget Review System Rules
+    // ===============================================================
+
+    // Product Catalog: products/{productId}
+    match /products/{productId} {
+      // Catalog items are publicly readable
+      allow read: if true;
+      // Creation and editing strictly restricted to administrators
+      allow create, update, delete: if isAdmin();
+
+      // Product Reviews: products/{productId}/reviews/{reviewId}
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && 
+          request.resource.data.rating is number &&
+          request.resource.data.rating >= 1 &&
+          request.resource.data.rating <= 5;
+        allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.authorId == request.auth.uid);
+      }
+    }
+
+    // Product Analyses: productAnalyses/{productId}
+    match /productAnalyses/{productId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Saved Products: savedProducts/{docKey}
+    match /savedProducts/{docKey} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Analysis Runs: analysisRuns/{runId}
+    match /analysisRuns/{runId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
+
