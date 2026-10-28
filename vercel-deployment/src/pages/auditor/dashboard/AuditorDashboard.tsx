@@ -47,7 +47,7 @@ export function AuditorDashboard({ user }: { user: User }) {
           id: e.evidenceId,
           type: (e.status === 'Verified' ? 'evidence_verified' : 'evidence_submitted') as any,
           title: `${(ACTIVITY_TYPE_LABELS as any)[e.activityType] || 'Evidence'} for ${e.assetId}`,
-          description: e.description || `Evidence ID: ${e.evidenceId}`,
+          description: typeof e.description === 'string' && e.description ? e.description : `Evidence ID: ${e.evidenceId}`,
           timestamp: e.createdAt || e.timestamp,
           assetId: e.assetId,
           evidenceId: e.evidenceId,

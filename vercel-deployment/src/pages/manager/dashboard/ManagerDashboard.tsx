@@ -63,11 +63,11 @@ export function ManagerDashboard({ user }: { user: User }) {
             id: e.evidenceId,
             type: actType,
             title: `${(ACTIVITY_TYPE_LABELS as any)[e.activityType] || e.activityType || 'Evidence'} · ${e.assetName || e.assetCode || 'Asset'}`,
-            description: e.description || `Submitted by ${e.userName || 'Technician'}`,
+            description: typeof e.description === 'string' && e.description ? e.description : `Submitted by ${e.userName || 'Technician'}`,
             timestamp: e.timestamp || e.createdAt,
             assetId: e.assetId,
             evidenceId: e.evidenceId,
-            status: e.verificationStatus || e.anchorStatus || 'Submitted',
+            status: typeof e.verificationStatus === 'string' ? e.verificationStatus : (typeof e.anchorStatus === 'string' ? e.anchorStatus : 'Submitted'),
             activityType: e.activityType,
             userName: e.userName,
           };

@@ -8,29 +8,39 @@ import { formatRelativeTime } from '@utils/date';
 interface RecentActivityProps {
   activities: Array<{
     id: string;
-    type: 'evidence_created' | 'evidence_submitted' | 'evidence_verified' | 'asset_created' | 'asset_updated';
+    type: 'evidence_created' | 'evidence_submitted' | 'evidence_verified' | 'asset_created' | 'asset_updated' | string;
     title: string;
-    description?: string;
+    description?: any;
     timestamp: string;
     assetTag?: string;
     assetId?: string;
     evidenceId?: string;
-    status?: EvidenceStatus;
-    activityType?: ActivityType;
+    status?: EvidenceStatus | string;
+    activityType?: ActivityType | string;
   }>;
   onViewAsset?: (assetId: string) => void;
   onViewEvidence?: (evidenceId: string) => void;
   limit?: number;
 }
 
+function renderSafeText(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.message || val.error || val.reason || val.name || JSON.stringify(val);
+  }
+  return String(val);
+}
+
 export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit = 5 }: RecentActivityProps) {
   const displayActivities = activities.slice(0, limit);
 
-  const getActivityIcon = (type: string, activityType?: ActivityType) => {
+  const getActivityIcon = (type: string, activityType?: string) => {
     switch (type) {
       case 'evidence_created':
       case 'evidence_submitted':
-        return activityType ? ACTIVITY_TYPE_ICONS[activityType] : Camera;
+        return (activityType && (ACTIVITY_TYPE_ICONS as any)[activityType]) ? (ACTIVITY_TYPE_ICONS as any)[activityType] : Camera;
       case 'evidence_verified':
         return Shield;
       case 'asset_created':
@@ -97,21 +107,21 @@ export function RecentActivity({ activities, onViewAsset, onViewEvidence, limit 
                 </div>
                 <div className="flex-1 min-w-0 pt-0.5">
                   <div className="flex items-center justify-between gap-3 sm:gap-4">
-                    <p className="text-sm sm:text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight truncate">{activity.title}</p>
+                    <p className="text-sm sm:text-[15px] font-semibold text-gray-900 dark:text-white tracking-tight truncate">{renderSafeText(activity.title)}</p>
                     <span className="text-xs sm:text-[13px] font-medium text-gray-400 flex-shrink-0">
                       {formatRelativeTime(activity.timestamp)}
                     </span>
                   </div>
                   {activity.description && (
-                    <p className="text-xs sm:text-[14px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 truncate tracking-wide">{activity.description}</p>
+                    <p className="text-xs sm:text-[14px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 truncate tracking-wide">{renderSafeText(activity.description)}</p>
                   )}
                   <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-3 text-xs sm:text-[13px] text-gray-400">
                     {activity.assetTag && (
-                      <span className="font-mono bg-gray-100/80 dark:bg-white/10 px-1.5 sm:px-2 py-0.5 rounded text-gray-600 dark:text-gray-300 font-medium">{activity.assetTag}</span>
+                      <span className="font-mono bg-gray-100/80 dark:bg-white/10 px-1.5 sm:px-2 py-0.5 rounded text-gray-600 dark:text-gray-300 font-medium">{renderSafeText(activity.assetTag)}</span>
                     )}
                     {activity.status && (
-                      <Badge className={EVIDENCE_STATUS_COLORS[activity.status]}>
-                        {activity.status}
+                      <Badge className={(EVIDENCE_STATUS_COLORS as Record<string, string>)[String(activity.status)] || 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300'}>
+                        {renderSafeText(activity.status)}
                       </Badge>
                     )}
                   </div>

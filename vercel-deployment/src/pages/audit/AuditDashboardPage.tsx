@@ -244,7 +244,7 @@ export function AuditDashboardPage() {
                 )}
                 {!isLoading && filteredLogs.map((entry) => {
                   const Icon = actionIcons[entry.action] || FileText;
-                  const detailString = entry.details ? Object.entries(entry.details).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+                  const detailString = entry.details ? Object.entries(entry.details).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(', ') : '';
                   const severity = (entry as any).severity || 'info';
 
                   return (

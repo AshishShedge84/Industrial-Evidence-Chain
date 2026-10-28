@@ -11,16 +11,18 @@ import { AuditDashboardPage } from '@pages/audit';
 import { ProfilePage } from '@pages/profile';
 import { SettingsPage } from '@pages/settings';
 import { UsersPage } from '@pages/admin';
-import { NotFoundPage, UnauthorizedPage } from '@pages/system';
+import { NotFoundPage, UnauthorizedPage, RouteErrorPage } from '@pages/system';
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <PublicRoute><LoginPage /></PublicRoute>,
+    errorElement: <RouteErrorPage />,
   },
   {
     path: '/',
     element: <AppLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,

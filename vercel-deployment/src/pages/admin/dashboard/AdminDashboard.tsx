@@ -45,15 +45,42 @@ export function AdminDashboard({ user }: { user: User }) {
         });
 
         if (auditRes.success && auditRes.data && auditRes.data.length > 0) {
-          const mapped = auditRes.data.slice(0, 5).map((log: any) => ({
-            id: log.id,
-            type: log.action.includes('Evidence') ? 'evidence_submitted' : 'asset_created',
-            title: `${log.performedBy} — ${log.action.replace(/([A-Z])/g, ' $1').trim()}`,
-            description: log.details || (log.entityType ? `${log.entityType}: ${log.entityId}` : 'System event'),
-            timestamp: log.performedAt,
-            evidenceId: log.entityType === 'EvidenceRecord' ? log.entityId : undefined,
-            assetId: log.entityType === 'Asset' ? log.entityId : undefined,
-          }));
+          const mapped = auditRes.data.slice(0, 5).map((log: any) => {
+            let desc = 'System event';
+            if (typeof log.details === 'string' && log.details) {
+              desc = log.details;
+            } else if (log.details && typeof log.details === 'object') {
+              if (log.details.evidenceHash) {
+                desc = `Hash: ${String(log.details.evidenceHash).substring(0, 16)}... • Status: ${log.details.anchorStatus || 'Anchored'}`;
+              } else if (log.details.message) {
+                desc = String(log.details.message);
+              } else if (log.details.error) {
+                desc = `Error: ${typeof log.details.error === 'object' ? JSON.stringify(log.details.error) : log.details.error}`;
+              } else if (log.entityType && log.entityId) {
+                desc = `${log.entityType}: ${log.entityId}`;
+              } else {
+                desc = Object.entries(log.details)
+                  .filter(([_, v]) => v !== null && v !== undefined && typeof v !== 'object')
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(', ') || 'System event';
+              }
+            } else if (log.entityType) {
+              desc = `${log.entityType}: ${log.entityId || ''}`.trim();
+            }
+
+            const performer = log.performedBy || log.userEmail || (log.userId ? `User ${String(log.userId).substring(0, 8)}` : 'System');
+            const actionLabel = (log.action || 'Audit Event').replace(/([A-Z])/g, ' $1').trim();
+
+            return {
+              id: log.id,
+              type: (log.action || '').includes('Evidence') ? 'evidence_submitted' : 'asset_created',
+              title: `${performer} — ${actionLabel}`,
+              description: desc,
+              timestamp: log.performedAt || log.createdAt || log.created_at || new Date().toISOString(),
+              evidenceId: log.entityType === 'EvidenceRecord' ? log.entityId : (log.details?.evidenceId || undefined),
+              assetId: log.entityType === 'Asset' ? log.entityId : (log.details?.assetId || undefined),
+            };
+          });
           setRecentActivities(mapped);
         }
       } catch (err) {
