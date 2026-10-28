@@ -12,6 +12,16 @@ export interface AdminService {
   getAuditLogs(limit?: number): Promise<ApiResponse<any[]>>;
 }
 
+function cleanFirestoreDoc(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 function normalizeUser(docId: string, data: any): User {
   const firstName = data.firstName || data.fullName?.split(' ')[0] || data.username || 'User';
   const lastName = data.lastName || data.fullName?.split(' ').slice(1).join(' ') || '';
@@ -105,7 +115,15 @@ class FirebaseAdminServiceImpl implements AdminService {
     try {
       const userRef = doc(db, 'users', userId);
       const now = new Date().toISOString();
-      await updateDoc(userRef, { ...data, updatedAt: now });
+      const sanitized = cleanFirestoreDoc({
+        ...data,
+        updatedAt: now,
+      });
+      // Do not store empty/undefined passwords in user document
+      if ('password' in sanitized && !sanitized.password) {
+        delete sanitized.password;
+      }
+      await updateDoc(userRef, sanitized);
 
       const snap = await getDoc(userRef);
       return {
@@ -131,7 +149,7 @@ class FirebaseAdminServiceImpl implements AdminService {
       const firstName = data.firstName || 'New';
       const lastName = data.lastName || 'User';
 
-      const newUser: User = {
+      const newUser = cleanFirestoreDoc({
         id: userId,
         email: data.email || `user_${Date.now()}@iec.app`,
         username: data.username || data.email?.split('@')[0] || `user_${Date.now()}`,
@@ -140,15 +158,16 @@ class FirebaseAdminServiceImpl implements AdminService {
         lastName,
         role: data.role || 'Technician',
         status: data.status || 'active',
+        bio: data.bio || '',
         createdAt: now,
         updatedAt: now,
-      };
+      });
 
       await setDoc(doc(db, 'users', userId), newUser);
 
       return {
         success: true,
-        data: newUser,
+        data: newUser as User,
       };
     } catch (error: any) {
       return {

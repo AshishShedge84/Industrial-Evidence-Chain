@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAssistant } from '@hooks/useAssistant';
 import { AssistantSuggestions } from './AssistantSuggestions';
 import { MessageComposer } from './MessageComposer';
+import { AssistantMemoji } from './AssistantMemoji';
 import { Button } from '@components/ui';
 
 export function AssistantMessages() {
@@ -38,48 +39,58 @@ export function AssistantMessages() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
-            {msg.text && (
-              <div
-                className={`px-4 py-2.5 rounded-2xl text-[15px] whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'max-w-[75%] bg-primary-600 text-white rounded-tr-sm'
-                    : msg.role === 'system'
-                    ? 'max-w-[85%] bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 text-xs rounded-lg italic mx-auto'
-                    : 'max-w-[82%] bg-white dark:bg-[#222] border border-gray-100 dark:border-white/10 text-gray-900 dark:text-white rounded-tl-sm shadow-sm'
-                }`}
-              >
+            {msg.role === 'assistant' ? (
+              <div className="flex items-start gap-2.5 max-w-[88%]">
+                <div className="relative w-8 h-8 rounded-full bg-white/60 dark:bg-black/30 border border-gray-200 dark:border-white/10 overflow-hidden flex-shrink-0 mt-0.5 shadow-sm">
+                  <AssistantMemoji
+                    emotion={msg.emotion || 'idle'}
+                    className="w-full h-full scale-[2] translate-y-[2px]"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {msg.text && (
+                    <div className="px-4 py-2.5 rounded-2xl text-[15px] whitespace-pre-wrap bg-white dark:bg-[#222] border border-gray-100 dark:border-white/10 text-gray-900 dark:text-white rounded-tl-sm shadow-sm">
+                      {msg.text}
+                    </div>
+                  )}
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {msg.actions.map((action, idx) => (
+                        <Button
+                          key={idx}
+                          variant={action.action === 'CANCEL' ? 'outline' : 'secondary'}
+                          size="sm"
+                          onClick={() => {
+                            if (action.action === 'NAVIGATE' && action.payload) {
+                              navigate(action.payload);
+                            } else {
+                              handleAction(action);
+                            }
+                          }}
+                          className="text-xs"
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  {msg.isComposer && (
+                    <MessageComposer 
+                      initialRecipientId={msg.composerPayload?.recipientId}
+                      initialMessage={msg.composerPayload?.message}
+                      onComplete={() => {}} 
+                    />
+                  )}
+                </div>
+              </div>
+            ) : msg.role === 'system' ? (
+              <div className="max-w-[85%] bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 text-xs rounded-lg italic mx-auto px-4 py-2">
                 {msg.text}
               </div>
-            )}
-            
-            {msg.actions && msg.actions.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {msg.actions.map((action, idx) => (
-                  <Button
-                    key={idx}
-                    variant={action.action === 'CANCEL' ? 'outline' : 'secondary'}
-                    size="sm"
-                    onClick={() => {
-                      if (action.action === 'NAVIGATE' && action.payload) {
-                        navigate(action.payload);
-                      } else {
-                        handleAction(action);
-                      }
-                    }}
-                    className="text-xs"
-                  >
-                    {action.label}
-                  </Button>
-                ))}
+            ) : (
+              <div className="max-w-[75%] bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-[15px] whitespace-pre-wrap shadow-sm">
+                {msg.text}
               </div>
-            )}
-            
-            {msg.isComposer && (
-              <MessageComposer 
-                initialRecipientId={msg.composerPayload?.recipientId}
-                initialMessage={msg.composerPayload?.message}
-                onComplete={() => {}} 
-              />
             )}
           </motion.div>
         ))}
@@ -89,11 +100,17 @@ export function AssistantMessages() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="flex items-start"
+            className="flex items-start gap-2.5 max-w-[88%]"
           >
+            <div className="relative w-8 h-8 rounded-full bg-white/60 dark:bg-black/30 border border-gray-200 dark:border-white/10 overflow-hidden flex-shrink-0 mt-0.5 shadow-sm">
+              <AssistantMemoji
+                emotion="thinking"
+                className="w-full h-full scale-[2] translate-y-[2px]"
+              />
+            </div>
             <div className="bg-white dark:bg-[#222] border border-gray-100 dark:border-white/10 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
               <div className="flex items-center gap-1.5 text-[14px] text-gray-500 dark:text-gray-400 font-medium">
-                <span>Chat bot is thinking</span>
+                <span>IEC Assistant is thinking</span>
                 <div className="flex space-x-1 mt-1.5">
                   <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />

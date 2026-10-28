@@ -41,6 +41,18 @@ export function AssistantMemoji({
   const displayedSrc = getDisplayedMemoji(currentIdentity, state);
   const imageSrc = hasError ? DEFAULT_ASSISTANT_IDENTITY.avatar : displayedSrc;
 
+  // Preload expression pack for this role to avoid flicker during transitions
+  useEffect(() => {
+    if (currentIdentity?.expressions) {
+      Object.values(currentIdentity.expressions).forEach((url) => {
+        if (url) {
+          const img = new Image();
+          img.src = encodeURI(url);
+        }
+      });
+    }
+  }, [currentIdentity.role]);
+
   // Reset error fallback whenever identity or state changes
   useEffect(() => {
     setHasError(false);

@@ -136,6 +136,12 @@ export function resolveAssistantState(
   if (emotion === 'error') {
     return 'error';
   }
+  if ((emotion as string) === 'hover' || options?.isHovered) {
+    return 'hover';
+  }
+  if ((emotion as string) === 'initial') {
+    return 'initial';
+  }
 
   // 2. Interactive hover state (launcher or header avatar)
   if (options?.isHovered) {
@@ -166,12 +172,14 @@ export function getAssistantMemoji(
 
   const normalizedState: AssistantExpression = state === 'idle_chat' ? 'idle' : state;
 
-  return (
+  const rawUrl = (
     identity.expressions[normalizedState] ||
     identity.expressions.initial ||
     DEFAULT_EXPRESSION_PACK[normalizedState] ||
     DEFAULT_ASSISTANT_IDENTITY.avatar
   );
+
+  return encodeURI(rawUrl);
 }
 
 /**

@@ -33,6 +33,16 @@ export interface AuthService {
   changePassword(userId: string, current: string, newPass: string): Promise<ApiResponse<{ message: string }>>;
 }
 
+function cleanFirestoreDoc(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 function formatUserDoc(docId: string, data: any): User {
   const firstName = data.firstName || data.fullName?.split(' ')[0] || data.username || 'User';
   const lastName = data.lastName || data.fullName?.split(' ').slice(1).join(' ') || '';
@@ -141,7 +151,7 @@ class FirebaseAuthServiceImpl implements AuthService {
           // Save mapped UID
           await setDoc(doc(db, 'users', fbUser.uid), { ...matchedDoc.data(), authUid: fbUser.uid }, { merge: true });
         } else {
-          // Create default Technician profile
+          // Create new user profile with pending status awaiting admin approval
           const defaultUser: User = {
             id: fbUser.uid,
             email: fbUser.email || email,
@@ -149,14 +159,45 @@ class FirebaseAuthServiceImpl implements AuthService {
             fullName: fbUser.displayName || 'IEC User',
             firstName: fbUser.displayName?.split(' ')[0] || 'IEC',
             lastName: fbUser.displayName?.split(' ').slice(1).join(' ') || 'User',
-            role: email.includes('admin') ? 'Admin' : 'Technician',
-            status: 'active',
+            role: 'Technician',
+            status: 'pending',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
-          await setDoc(userDocRef, defaultUser);
+          await setDoc(userDocRef, cleanFirestoreDoc(defaultUser));
           userData = defaultUser;
         }
+      }
+
+      // Check account approval status before granting session
+      if (userData.status === 'pending') {
+        await signOut(auth);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_PENDING_APPROVAL',
+            message: 'Your account is pending administrator approval and role assignment. Please wait for an administrator to approve your account before logging in.',
+            statusCode: 403,
+          },
+        };
+      }
+
+      if (userData.status === 'suspended' || userData.status === 'rejected') {
+        await signOut(auth);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_NOT_ACTIVE',
+            message: `Your account is ${userData.status}. Please contact an administrator.`,
+            statusCode: 403,
+          },
+        };
       }
 
       const responseData: LoginResponse = {
@@ -222,10 +263,8 @@ class FirebaseAuthServiceImpl implements AuthService {
           const firstName = parts[0] || 'IEC';
           const lastName = parts.slice(1).join(' ') || 'User';
           
-          let role: UserRole = 'Technician';
-          if (email.includes('admin')) role = 'Admin';
-          else if (email.includes('manager')) role = 'Manager';
-          else if (email.includes('auditor')) role = 'Auditor';
+          // Check if this matches a seeded active account like admin@iec.gov
+          const isSeededAdmin = email === 'admin@iec.gov' || email === 'manager@iec.gov';
 
           userData = {
             id: fbUser.uid,
@@ -234,15 +273,46 @@ class FirebaseAuthServiceImpl implements AuthService {
             fullName,
             firstName,
             lastName,
-            role,
-            status: 'active',
+            role: isSeededAdmin ? 'Admin' : 'Technician',
+            status: isSeededAdmin ? 'active' : 'pending',
             avatarUrl: fbUser.photoURL || undefined,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
-          await setDoc(userDocRef, userData);
+          await setDoc(userDocRef, cleanFirestoreDoc(userData));
         }
+      }
+
+      // Check approval status
+      if (userData.status === 'pending') {
+        await signOut(auth);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_PENDING_APPROVAL',
+            message: 'Your account has been registered and is pending administrator approval and role assignment. Please wait for an administrator to approve your account before logging in.',
+            statusCode: 403,
+          },
+        };
+      }
+
+      if (userData.status === 'suspended' || userData.status === 'rejected') {
+        await signOut(auth);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_NOT_ACTIVE',
+            message: `Your account is ${userData.status}. Please contact an administrator.`,
+            statusCode: 403,
+          },
+        };
       }
 
       return {
@@ -280,17 +350,18 @@ class FirebaseAuthServiceImpl implements AuthService {
         fullName: `${credentials.firstName} ${credentials.lastName}`.trim(),
         firstName: credentials.firstName,
         lastName: credentials.lastName,
-        role: credentials.role || 'Technician',
-        status: 'active',
+        role: 'Technician',
+        status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'users', fbUser.uid), newUser);
+      await setDoc(doc(db, 'users', fbUser.uid), cleanFirestoreDoc(newUser));
+      await signOut(auth);
 
       return {
         success: true,
-        data: { message: 'Registration successful' },
+        data: { message: 'Registration submitted. Your account is awaiting administrator approval and role assignment.' },
       };
     } catch (error: any) {
       return {
@@ -320,18 +391,47 @@ class FirebaseAuthServiceImpl implements AuthService {
         const userDocRef = doc(db, 'users', currentUser.uid);
         const snapshot = await getDoc(userDocRef);
         if (snapshot.exists()) {
+          const user = formatUserDoc(snapshot.id, snapshot.data());
+          if (user.status !== 'active') {
+            await signOut(auth);
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            return {
+              success: false,
+              error: {
+                code: 'ACCOUNT_NOT_ACTIVE',
+                message: `Account is ${user.status}. Please wait for administrator approval.`,
+                statusCode: 403,
+              },
+            };
+          }
           return {
             success: true,
-            data: formatUserDoc(snapshot.id, snapshot.data()),
+            data: user,
           };
         }
       }
 
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.status !== 'active') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          return {
+            success: false,
+            error: {
+              code: 'ACCOUNT_NOT_ACTIVE',
+              message: 'Account is pending approval',
+              statusCode: 403,
+            },
+          };
+        }
         return {
           success: true,
-          data: JSON.parse(storedUser),
+          data: parsed,
         };
       }
 
@@ -367,10 +467,11 @@ class FirebaseAuthServiceImpl implements AuthService {
   async updateProfile(userId: string, data: Partial<User>): Promise<ApiResponse<User>> {
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
+      const sanitized = cleanFirestoreDoc({
         ...data,
         updatedAt: new Date().toISOString(),
       });
+      await updateDoc(userRef, sanitized);
 
       const updatedSnap = await getDoc(userRef);
       const updatedUser = formatUserDoc(updatedSnap.id, updatedSnap.data());

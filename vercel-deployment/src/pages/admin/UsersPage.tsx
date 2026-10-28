@@ -44,16 +44,28 @@ export function UsersPage() {
     if (!editingUser) return;
     setIsLoading(true);
 
+    const payload: Partial<UserType> = {
+      firstName: editingUser.firstName?.trim() || '',
+      lastName: editingUser.lastName?.trim() || '',
+      fullName: `${editingUser.firstName?.trim() || ''} ${editingUser.lastName?.trim() || ''}`.trim(),
+      email: editingUser.email?.trim().toLowerCase() || '',
+      role: editingUser.role,
+      status: editingUser.status,
+      bio: editingUser.bio?.trim() || '',
+    };
+    if (editingUser.avatarUrl) payload.avatarUrl = editingUser.avatarUrl;
+    if (editingUser.selectedMemoji) payload.selectedMemoji = editingUser.selectedMemoji;
+
     let res;
     if (editingUser.id) {
-      res = await adminService.updateUser(editingUser.id, editingUser);
+      res = await adminService.updateUser(editingUser.id, payload);
     } else {
-      res = await adminService.addUser(editingUser);
+      res = await adminService.addUser(payload);
     }
 
     setIsLoading(false);
     if (res.success) {
-      addToast({ type: 'success', title: 'Saved', message: 'User saved successfully.' });
+      addToast({ type: 'success', title: 'Saved', message: 'User updated and role assigned successfully.' });
       setIsModalOpen(false);
       fetchUsers();
     } else {

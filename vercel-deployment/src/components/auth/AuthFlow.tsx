@@ -45,8 +45,10 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
       await login({ email, password });
       navigate(from, { replace: true });
     } catch (err: any) {
-      if (err.message?.includes('pending') || err.code === 'ACCOUNT_PENDING') {
-        setError('Your account is awaiting administrator approval.');
+      if (err.message?.toLowerCase().includes('pending') || err.code === 'ACCOUNT_PENDING' || err.code === 'ACCOUNT_PENDING_APPROVAL') {
+        setPendingApproval(true);
+      } else if (err.message?.toLowerCase().includes('suspended') || err.message?.toLowerCase().includes('rejected')) {
+        setError(err.message || 'Your account is currently disabled. Please contact an administrator.');
       } else {
         setError('Incorrect credentials. Check your email and password.');
       }
@@ -80,7 +82,11 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
       if (err.code === 'auth/popup-closed-by-user') {
         return;
       }
-      setError(err.message || 'Google sign-in failed. Please try again.');
+      if (err.message?.toLowerCase().includes('pending') || err.code === 'ACCOUNT_PENDING' || err.code === 'ACCOUNT_PENDING_APPROVAL') {
+        setPendingApproval(true);
+      } else {
+        setError(err.message || 'Google sign-in failed. Please try again.');
+      }
     }
   };
 
@@ -155,10 +161,14 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
               Your request has been securely submitted. You will be able to sign in once an administrator verifies your identity and role.
             </p>
             <button
-              onClick={onBack}
-              className="w-[120px] mx-auto mt-4 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white text-[13px] font-semibold h-8 rounded-full transition-colors"
+              onClick={() => {
+                setPendingApproval(false);
+                setMode('email');
+                setError('');
+              }}
+              className="w-full sm:w-auto px-6 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90 text-[13px] font-semibold h-10 rounded-full transition-opacity cursor-pointer shadow-sm"
             >
-              Close
+              Back to Sign in
             </button>
           </motion.div>
         ) : (
