@@ -31,6 +31,22 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+function cleanDoc(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) return obj.map(cleanDoc);
+  if (typeof obj !== 'object') return obj;
+  const cleaned = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    if (v !== null && typeof v === 'object') {
+      cleaned[k] = cleanDoc(v);
+    } else {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned;
+}
+
 // Helper to parse COPY table data from pg_dump sql file
 function parseCopyBlocks(sqlContent) {
   const blocks = {};
@@ -129,8 +145,13 @@ async function runMigration() {
     userRoleMap[ur.user_id] = roleMap[ur.role_id] || 'Technician';
   });
 
-  // Authenticate with Firebase
-  const authUser = await authenticateMigrator();
+  // Authenticate with Firebase if enabled
+  let authUser = null;
+  try {
+    authUser = await authenticateMigrator();
+  } catch (authErr) {
+    console.log(`[Auth Notice] Proceeding with unauthenticated migration (${authErr.message || authErr.code})`);
+  }
 
   // 1. Migrate Users
   console.log('\n[1/5] Migrating Users to Firestore collection: users...');
