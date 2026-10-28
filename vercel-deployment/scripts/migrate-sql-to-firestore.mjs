@@ -176,14 +176,14 @@ async function runMigration() {
       updatedAt: u.updated_at || u.created_at || new Date().toISOString(),
     };
 
-    await setDoc(doc(db, 'users', u.user_id), userDoc, { merge: true });
+    await setDoc(doc(db, 'users', u.user_id), cleanDoc(userDoc), { merge: true });
     migratedUsers++;
     console.log(`  ✓ User [${role}]: ${u.email} (${u.full_name})`);
   }
 
   // Also seed the active auth UID user document if different
   if (authUser && !rawUsers.some(u => u.user_id === authUser.uid)) {
-    await setDoc(doc(db, 'users', authUser.uid), {
+    await setDoc(doc(db, 'users', authUser.uid), cleanDoc({
       id: authUser.uid,
       email: authUser.email,
       username: 'admin',
@@ -196,7 +196,7 @@ async function runMigration() {
       authUid: authUser.uid,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    }), { merge: true });
   }
 
   // 2. Migrate Assets
@@ -236,7 +236,7 @@ async function runMigration() {
     };
 
     assetMap[a.asset_id] = assetDoc;
-    await setDoc(doc(db, 'assets', a.asset_id), assetDoc, { merge: true });
+    await setDoc(doc(db, 'assets', a.asset_id), cleanDoc(assetDoc), { merge: true });
     migratedAssets++;
     console.log(`  ✓ Asset: ${a.asset_code} — ${a.name} [${a.status}]`);
   }
@@ -273,7 +273,7 @@ async function runMigration() {
     proofByEvidence[p.evidence_id] = proofDoc;
 
     // Save into blockchain_proofs collection
-    await setDoc(doc(db, 'blockchain_proofs', p.transaction_id), {
+    await setDoc(doc(db, 'blockchain_proofs', p.transaction_id), cleanDoc({
       proof_id: p.proof_id,
       evidence_id: p.evidence_id,
       asset_id: p.asset_id,
@@ -283,7 +283,7 @@ async function runMigration() {
       anchored_at: p.anchored_at,
       created_at: p.created_at,
       ...proofDoc,
-    }, { merge: true });
+    }), { merge: true });
   }
 
   // 3. Migrate Evidence Records
@@ -292,7 +292,7 @@ async function runMigration() {
   for (const e of rawEvidence) {
     const asset = assetMap[e.asset_id];
     const media = mediaByEvidence[e.evidence_id] || [];
-    const proof = proofByEvidence[e.evidence_id] || undefined;
+    const proof = proofByEvidence[e.evidence_id] || null;
 
     let timestamp = e.timestamp;
     if (timestamp === '-infinity' || !timestamp) {
@@ -317,15 +317,15 @@ async function runMigration() {
       mediaReferences: media,
       status: e.anchor_status === 'Anchored' ? 'Anchored' : 'Submitted',
       blockchainProof: proof,
-      evidenceHash: e.evidence_hash || undefined,
+      evidenceHash: e.evidence_hash || null,
       assetName: asset?.name || 'Industrial Asset',
       assetCode: asset?.assetTag || 'ASSET',
       createdAt: e.created_at || new Date().toISOString(),
       updatedAt: e.created_at || new Date().toISOString(),
-      anchoredAt: proof ? proof.timestamp : undefined,
+      anchoredAt: proof ? proof.timestamp : null,
     };
 
-    await setDoc(doc(db, 'evidence', e.evidence_id), evidenceDoc, { merge: true });
+    await setDoc(doc(db, 'evidence', e.evidence_id), cleanDoc(evidenceDoc), { merge: true });
     migratedEvidence++;
     console.log(`  ✓ Evidence: [${e.evidence_id.slice(0, 8)}] ${e.activity_type} — ${evidenceDoc.status} (${media.length} media items)`);
   }
@@ -352,7 +352,7 @@ async function runMigration() {
       createdAt: log.created_at || new Date().toISOString(),
     };
 
-    await setDoc(doc(db, 'audit_logs', log.audit_log_id), logDoc, { merge: true });
+    await setDoc(doc(db, 'audit_logs', log.audit_log_id), cleanDoc(logDoc), { merge: true });
     migratedAuditLogs++;
   }
   console.log(`  ✓ Migrated ${migratedAuditLogs} audit logs`);
@@ -403,6 +403,7 @@ async function runMigration() {
   console.log(`----------------------------------------------------`);
   console.log(`Reconciliation Integrity: 100% COMPLETE & VERIFIED`);
   console.log('====================================================\n');
+  process.exit(0);
 }
 
 runMigration().catch(err => {

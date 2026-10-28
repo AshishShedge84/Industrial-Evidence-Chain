@@ -15,11 +15,22 @@ const db = getFirestore(app);
 
 async function run() {
   try {
-    console.log('Testing Firestore read...');
-    const snap = await getDocs(collection(db, 'assets'));
-    console.log(`Success! Found ${snap.docs.length} assets.`);
+    console.log('Testing Firestore reads across all IEC collections...');
+    const usersSnap = await getDocs(collection(db, 'users'));
+    console.log(`✓ Users: ${usersSnap.docs.length} found`);
+    const assetsSnap = await getDocs(collection(db, 'assets'));
+    console.log(`✓ Assets: ${assetsSnap.docs.length} found`);
+    const evidenceSnap = await getDocs(collection(db, 'evidence'));
+    console.log(`✓ Evidence: ${evidenceSnap.docs.length} found`);
+    const proofsSnap = await getDocs(collection(db, 'blockchain_proofs'));
+    console.log(`✓ Blockchain Proofs: ${proofsSnap.docs.length} found`);
+    const logsSnap = await getDocs(collection(db, 'audit_logs'));
+    console.log(`✓ Audit Logs: ${logsSnap.docs.length} found`);
+    console.log('\nAll Firestore collections verified successfully!');
+    process.exit(0);
   } catch (err) {
     console.error('Firestore test error:', err.message);
+    process.exit(1);
   }
 }
 
