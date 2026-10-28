@@ -67,8 +67,10 @@ export const notificationService = {
       if (seen.has(notif.id)) continue;
       seen.add(notif.id);
 
-      // STRICT USER ISOLATION: Never display another user's notifications
-      if (notif.recipientId && notif.recipientId !== userId && notif.recipientId !== 'all') {
+      // Admins see all notifications; others see notifications for 'all' or specifically for their userId
+      if (role?.toLowerCase() === 'admin') {
+        // Full plant visibility
+      } else if (notif.recipientId && notif.recipientId !== userId && notif.recipientId !== 'all') {
         continue;
       }
 
@@ -127,6 +129,50 @@ export const notificationService = {
     }
 
     return this.getNotificationsForUser(userId, role);
+  },
+
+  subscribe(userId: string, role?: string, onUpdate?: (notifs: Notification[]) => void): () => void {
+    try {
+      const notifsRef = collection(db, 'notifications');
+      return onSnapshot(
+        notifsRef,
+        (snap) => {
+          if (!snap.empty) {
+            const events: Notification[] = [];
+            snap.forEach((d) => {
+              const item = d.data();
+              events.push({
+                id: d.id,
+                recipientId: item.recipientId || item.userId || 'all',
+                senderId: item.senderId || 'system',
+                senderName: item.senderName || 'IEC Ledger Engine',
+                title: item.title || 'System Notification',
+                message: item.message || '',
+                type: item.type || 'info',
+                read: !!item.read,
+                createdAt: item.createdAt
+                  ? item.createdAt.toDate
+                    ? item.createdAt.toDate().toISOString()
+                    : String(item.createdAt)
+                  : new Date().toISOString(),
+                relatedEntity: item.relatedEntity || 'evidence',
+                relatedEntityId: item.relatedEntityId || item.entityId,
+                actionUrl: item.actionUrl,
+              });
+            });
+            cachedNotifications = events;
+            if (onUpdate) {
+              onUpdate(this.getNotificationsForUser(userId, role));
+            }
+          }
+        },
+        () => {
+          // Fallback silently if listener is restricted
+        }
+      );
+    } catch {
+      return () => {};
+    }
   },
 
   async sendNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<Notification> {

@@ -30,10 +30,14 @@ export function useNotifications() {
   useEffect(() => {
     refresh();
 
-    // Poll every 12 seconds for fresh backend event updates
-    const interval = setInterval(refresh, 12000);
-    return () => clearInterval(interval);
-  }, [refresh]);
+    if (userId) {
+      const unsub = notificationService.subscribe(userId, userRole, (notifs) => {
+        setNotifications(notifs);
+        setUnreadCount(notifs.filter((n) => !n.read).length);
+      });
+      return () => unsub();
+    }
+  }, [userId, userRole, refresh]);
 
   const markAsRead = useCallback(
     (id: string) => {

@@ -157,11 +157,15 @@ class FirebaseVerificationServiceImpl implements VerificationService {
   async getAuditTrail(evidenceId: string): Promise<ApiResponse<AuditTrailEntry[]>> {
     try {
       const logsRef = collection(db, 'audit_logs');
-      const q = query(logsRef, where('entity_id', '==', evidenceId));
-      const snap = await getDocs(q);
+      const snap1 = await getDocs(query(logsRef, where('entityId', '==', evidenceId)));
+      const snap2 = await getDocs(query(logsRef, where('entity_id', '==', evidenceId)));
 
+      const seenIds = new Set<string>();
       const entries: AuditTrailEntry[] = [];
-      snap.forEach((d) => {
+
+      const processDoc = (d: any) => {
+        if (seenIds.has(d.id)) return;
+        seenIds.add(d.id);
         const data = d.data();
         entries.push({
           id: d.id,
@@ -172,7 +176,10 @@ class FirebaseVerificationServiceImpl implements VerificationService {
           details: typeof data.details === 'string' ? JSON.parse(data.details || '{}') : data.details || {},
           ipAddress: data.ip_address || data.ipAddress,
         });
-      });
+      };
+
+      snap1.forEach(processDoc);
+      snap2.forEach(processDoc);
 
       // If no explicit audit_logs, derive from evidence life-cycle
       if (entries.length === 0) {
