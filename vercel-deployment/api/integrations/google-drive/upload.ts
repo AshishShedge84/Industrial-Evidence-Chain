@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { getDriveEnv } from '../../_lib/driveConfig';
-import { uploadFileToDrive } from '../../_lib/driveClient';
-import { authenticateRequest, sendJson } from '../../_lib/authMiddleware';
+import { getDriveEnv } from '../../_lib/driveConfig.js';
+import { uploadFileToDrive } from '../../_lib/driveClient.js';
+import { authenticateRequest, sendJson } from '../../_lib/authMiddleware.js';
 
 // Parse raw body helper
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
@@ -101,3 +101,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
   }
 }
+

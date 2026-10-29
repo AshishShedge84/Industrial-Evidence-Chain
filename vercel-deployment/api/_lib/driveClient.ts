@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { DRIVE_CONFIG, getDriveEnv } from './driveConfig';
-import { getStoredDriveIntegration, refreshAccessToken } from './driveOAuth';
+import { DRIVE_CONFIG, getDriveEnv } from './driveConfig.js';
+import { getStoredDriveIntegration, refreshAccessToken } from './driveOAuth.js';
 
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 

@@ -1,0 +1,44 @@
+import esbuild from 'esbuild';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.resolve(__dirname, '..');
+
+const endpoints = [
+  'api/integrations/google-drive/oauth/start.ts',
+  'api/integrations/google-drive/oauth/callback.ts',
+  'api/integrations/google-drive/status.ts',
+  'api/integrations/google-drive/disconnect.ts',
+  'api/integrations/google-drive/upload.ts',
+  'api/integrations/google-drive/file.ts',
+];
+
+async function buildAll() {
+  console.log('⚡ Bundling serverless API endpoints for Vercel...');
+
+  for (const entry of endpoints) {
+    const entryPath = path.resolve(rootDir, entry);
+    const outPath = entryPath.replace(/\.ts$/, '.js');
+
+    await esbuild.build({
+      entryPoints: [entryPath],
+      outfile: outPath,
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node20',
+      minify: false,
+      sourcemap: false,
+    });
+
+    console.log(`✓ Built ${entry} -> ${path.relative(rootDir, outPath)}`);
+  }
+
+  console.log('✨ Serverless API endpoints built successfully.');
+}
+
+buildAll().catch((err) => {
+  console.error('Failed to build serverless endpoints:', err);
+  process.exit(1);
+});

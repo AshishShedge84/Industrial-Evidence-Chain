@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { getDriveEnv, DRIVE_CONFIG } from '../../_lib/driveConfig';
-import { getStoredDriveIntegration } from '../../_lib/driveOAuth';
-import { checkFolderAccess, type FolderCheckResult } from '../../_lib/driveClient';
-import { sendJson } from '../../_lib/authMiddleware';
+import { getDriveEnv, DRIVE_CONFIG } from '../../_lib/driveConfig.js';
+import { getStoredDriveIntegration } from '../../_lib/driveOAuth.js';
+import { checkFolderAccess, type FolderCheckResult } from '../../_lib/driveClient.js';
+import { sendJson } from '../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') {

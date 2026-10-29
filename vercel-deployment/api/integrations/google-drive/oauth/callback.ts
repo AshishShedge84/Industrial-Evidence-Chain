@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { verifyOAuthState, exchangeCodeForTokens, saveDriveIntegration } from '../../../_lib/driveOAuth';
-import { sendJson } from '../../../_lib/authMiddleware';
+import { verifyOAuthState, exchangeCodeForTokens, saveDriveIntegration } from '../../../_lib/driveOAuth.js';
+import { sendJson } from '../../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') {
@@ -78,3 +78,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.end();
   }
 }
+

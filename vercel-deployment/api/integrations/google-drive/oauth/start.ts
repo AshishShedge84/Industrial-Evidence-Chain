@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { generateOAuthState, buildAuthorizationUrl } from '../../../_lib/driveOAuth';
-import { getDriveEnv } from '../../../_lib/driveConfig';
-import { sendJson } from '../../../_lib/authMiddleware';
+import { generateOAuthState, buildAuthorizationUrl } from '../../../_lib/driveOAuth.js';
+import { getDriveEnv } from '../../../_lib/driveConfig.js';
+import { sendJson } from '../../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') {
@@ -57,3 +57,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
   }
 }
+

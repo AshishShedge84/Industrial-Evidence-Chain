@@ -41,3 +41,4 @@ export function getDriveEnv() {
     firebaseProjectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'electronics-gadget-review-sys',
   };
 }
+

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { downloadFileFromDrive } from '../../_lib/driveClient';
-import { authenticateRequest, sendJson } from '../../_lib/authMiddleware';
+import { downloadFileFromDrive } from '../../_lib/driveClient.js';
+import { authenticateRequest, sendJson } from '../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') {
@@ -40,3 +40,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
   }
 }
+

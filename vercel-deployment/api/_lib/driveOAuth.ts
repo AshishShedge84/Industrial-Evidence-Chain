@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { DRIVE_CONFIG, getDriveEnv } from './driveConfig';
+import { DRIVE_CONFIG, getDriveEnv } from './driveConfig.js';
 
 interface OAuthStatePayload {
   nonce: string;

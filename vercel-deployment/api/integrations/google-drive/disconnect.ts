@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { clearDriveIntegration } from '../../_lib/driveOAuth';
-import { sendJson } from '../../_lib/authMiddleware';
+import { clearDriveIntegration } from '../../_lib/driveOAuth.js';
+import { sendJson } from '../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') {
@@ -21,3 +21,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
   }
 }
+
