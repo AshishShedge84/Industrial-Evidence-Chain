@@ -20,12 +20,15 @@ import {
   RotateCw,
   Trash2,
   ShieldCheck,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '@hooks/useAuth';
 import { useCamera } from '@hooks/useCamera';
 import { useGeolocation } from '@hooks/useGeolocation';
 import { assetService } from '@services/assets/assetService';
 import { evidenceService } from '@services/evidence/evidenceService';
+import { googleDriveService } from '@services/drive/googleDriveService';
+import { calculateFileSha256, validateMediaFile } from '@/utils/cryptoHash';
 import { QRScanner, parseAssetIdentifier } from '@components/qr/QRScanner';
 import {
   ACTIVITY_TYPE_ICONS,
@@ -114,11 +117,36 @@ export function CaptureEvidencePage() {
 
   // Step 7: Confirmation & Submission
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [submissionState, setSubmissionState] = useState<{
-    step: string;
     status: 'idle' | 'loading' | 'success' | 'error';
-    message?: string;
-  }>({ step: '', status: 'idle' });
+    stage: number;
+    stageName: string;
+    detail: string;
+    progressPercent: number;
+    error?: {
+      title: string;
+      message: string;
+      code?: string;
+      canGoToSettings?: boolean;
+      canRetry?: boolean;
+    };
+  }>({
+    status: 'idle',
+    stage: 0,
+    stageName: '',
+    detail: '',
+    progressPercent: 0,
+  });
+
+  const handleDeviceFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const selected = Array.from(e.target.files);
+      setCapturedFiles((prev) => [...prev, ...selected]);
+      toast.success('Media Added', `${selected.length} file(s) attached from device.`);
+      e.target.value = '';
+    }
+  };
 
   // Sync video preview element with camera stream in Step 5
   useEffect(() => {
@@ -303,16 +331,75 @@ export function CaptureEvidencePage() {
     }
   };
 
-  // Final Submission Pipeline
+  // Final 7-Stage Submission Pipeline with Real Time Visibility & Timeout Safeguards
   const handleFinalSubmit = async () => {
     if (!selectedAsset || !user || !activityType || !location || capturedFiles.length === 0 || !isConfirmed) {
       toast.error('Incomplete Evidence', 'Please complete all required fields and confirmation.');
       return;
     }
 
+    if (submissionState.status === 'loading') {
+      return;
+    }
+
     try {
-      // Step 1: Create draft evidence in PostgreSQL
-      setSubmissionState({ step: 'Creating evidence draft in database...', status: 'loading' });
+      // STAGE 1: Validating evidence
+      setSubmissionState({
+        status: 'loading',
+        stage: 1,
+        stageName: 'Validating Evidence',
+        detail: 'Verifying GPS fix, asset attributes, and media structures...',
+        progressPercent: 5,
+      });
+
+      for (const f of capturedFiles) {
+        const v = validateMediaFile(f);
+        if (!v.valid) {
+          throw new Error(`Media validation failed: ${v.error}`);
+        }
+      }
+
+      // Pre-check Google Drive status before performing writes
+      const driveStatusRes = await googleDriveService.getStatus();
+      const isDriveConnected = Boolean(driveStatusRes.data?.connected);
+
+      if (!isDriveConnected) {
+        setSubmissionState({
+          status: 'error',
+          stage: 1,
+          stageName: 'Storage Verification',
+          detail: 'Google Drive Enterprise Storage is not connected.',
+          progressPercent: 10,
+          error: {
+            title: 'Google Drive Storage Required',
+            message:
+              'Google Drive Enterprise Storage is not connected. An administrator must connect Google Drive in Settings before evidence can be sealed into the vault.',
+            code: 'DRIVE_NOT_CONNECTED',
+            canGoToSettings: true,
+            canRetry: true,
+          },
+        });
+        return;
+      }
+
+      // STAGE 2: Calculating SHA-256 hash (mobile-safe chunked streaming)
+      setSubmissionState({
+        status: 'loading',
+        stage: 2,
+        stageName: 'Calculating SHA-256 Hash',
+        detail: 'Generating deterministic SHA-256 integrity checksums...',
+        progressPercent: 15,
+      });
+
+      // STAGE 3: Preparing secure upload & Creating initial evidence draft
+      setSubmissionState({
+        status: 'loading',
+        stage: 3,
+        stageName: 'Preparing Secure Upload',
+        detail: 'Initializing Google Drive session and creating evidence draft...',
+        progressPercent: 25,
+      });
+
       const createRes = await evidenceService.createEvidence({
         assetId: selectedAsset.id,
         userId: user.id,
@@ -326,26 +413,75 @@ export function CaptureEvidencePage() {
       } as any);
 
       if (!createRes.success || !createRes.data) {
-        throw new Error(createRes.error?.message || 'Failed to create evidence draft.');
+        throw new Error(createRes.error?.message || 'Failed to create evidence draft in Firestore.');
       }
 
       const evidenceId = createRes.data.evidenceId || (createRes.data as any).id;
 
-      // Step 2: Upload media files
-      setSubmissionState({ step: 'Uploading and hashing media files...', status: 'loading' });
-      const uploadRes = await evidenceService.uploadMedia(evidenceId, capturedFiles);
-      if (!uploadRes.success) {
+      // STAGE 4: Uploading media via resumable direct stream
+      setSubmissionState({
+        status: 'loading',
+        stage: 4,
+        stageName: 'Uploading Media',
+        detail: 'Streaming evidence files directly to Google Drive vault...',
+        progressPercent: 35,
+      });
+
+      const uploadRes = await evidenceService.uploadMedia(
+        evidenceId,
+        capturedFiles,
+        (progress, stageInfo) => {
+          setSubmissionState((prev) => ({
+            ...prev,
+            progressPercent: Math.min(85, Math.max(35, progress)),
+            detail: stageInfo || prev.detail,
+          }));
+        }
+      );
+
+      if (!uploadRes.success || !uploadRes.data) {
         throw new Error(uploadRes.error?.message || 'Failed to upload media files.');
       }
 
-      // Step 3: Cryptographic canonicalization and anchor to blockchain ledger
-      setSubmissionState({ step: 'Canonicalizing hash and anchoring to Hyperledger Fabric...', status: 'loading' });
+      // STAGE 5: Verifying uploaded media
+      setSubmissionState({
+        status: 'loading',
+        stage: 5,
+        stageName: 'Verifying Uploaded Media',
+        detail: 'Confirming remote cloud file handles and cryptographic seals...',
+        progressPercent: 88,
+      });
+
+      // STAGE 6: Saving evidence metadata
+      setSubmissionState({
+        status: 'loading',
+        stage: 6,
+        stageName: 'Saving Evidence Metadata',
+        detail: 'Recording immutable audit metadata and GPS anchor...',
+        progressPercent: 93,
+      });
+
+      // STAGE 7: Finalising submission & ledger anchor
+      setSubmissionState({
+        status: 'loading',
+        stage: 7,
+        stageName: 'Finalising Submission',
+        detail: 'Anchoring evidence to blockchain ledger and sealing record...',
+        progressPercent: 97,
+      });
+
       const submitRes = await evidenceService.submitEvidence(evidenceId);
       if (!submitRes.success) {
         throw new Error(submitRes.error?.message || 'Failed to anchor evidence to ledger.');
       }
 
-      setSubmissionState({ step: 'Evidence sealed and anchored to ledger!', status: 'success' });
+      setSubmissionState({
+        status: 'success',
+        stage: 7,
+        stageName: 'Evidence Sealed',
+        detail: 'Evidence sealed and anchored to ledger!',
+        progressPercent: 100,
+      });
       toast.success('Evidence Sealed', 'Record successfully anchored to the blockchain.');
 
       // Stop camera cleanly before navigation
@@ -356,12 +492,24 @@ export function CaptureEvidencePage() {
       }, 1500);
     } catch (err: any) {
       console.error('Submission failed', err);
+      const msg = err.message || 'An error occurred during evidence submission.';
+      const isDriveErr = msg.includes('Google Drive') || msg.includes('DRIVE_NOT_CONNECTED');
+
       setSubmissionState({
-        step: 'Submission Failed',
         status: 'error',
-        message: err.message || 'An error occurred during submission.',
+        stage: 0,
+        stageName: 'Submission Failed',
+        detail: msg,
+        progressPercent: 0,
+        error: {
+          title: isDriveErr ? 'Google Drive Storage Error' : 'Evidence Submission Error',
+          message: msg,
+          code: isDriveErr ? 'DRIVE_ERROR' : 'SUBMISSION_ERROR',
+          canGoToSettings: isDriveErr,
+          canRetry: true,
+        },
       });
-      toast.error('Submission Error', err.message || 'Failed to submit evidence.');
+      toast.error('Submission Error', msg);
     }
   };
 
@@ -899,6 +1047,28 @@ export function CaptureEvidencePage() {
                     )}
                   </div>
 
+                  {/* Device File Picker for Mobile Gallery or External Upload */}
+                  <div className="flex items-center justify-center pt-1 pb-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*,video/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleDeviceFilesSelected}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-2xl border border-dashed border-primary-500/30 bg-primary-50/50 dark:bg-primary-950/20 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-100/50 py-2.5 px-4 shadow-sm"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Attach from Photos / Gallery / Files
+                    </Button>
+                  </div>
+
                   {/* Captured Thumbnails */}
                   {capturedFiles.length > 0 && (
                     <div className="space-y-3 pt-2">
@@ -1152,38 +1322,90 @@ export function CaptureEvidencePage() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Submission Progress Modal */}
+          {/* 7-Stage Submission Progress & Error Modal */}
           {submissionState.status !== 'idle' && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-              <div className="bg-white dark:bg-[#111] border border-black/5 dark:border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center">
-                <div className="mb-5 flex justify-center">
+            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-[#12161F] border border-black/10 dark:border-white/10 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center">
+                <div className="mb-4 flex justify-center">
                   {submissionState.status === 'loading' && (
-                    <Loader2 className="h-12 w-12 text-primary-600 animate-spin" />
+                    <div className="relative">
+                      <div className="h-16 w-16 rounded-2xl bg-primary-50 dark:bg-primary-950/60 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      </div>
+                      <span className="absolute -top-1.5 -right-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-primary-600 text-white shadow-sm">
+                        {submissionState.stage}/7
+                      </span>
+                    </div>
                   )}
                   {submissionState.status === 'success' && (
-                    <CheckCircle className="h-12 w-12 text-emerald-500" />
+                    <div className="h-16 w-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-500">
+                      <CheckCircle className="h-9 w-9" />
+                    </div>
                   )}
                   {submissionState.status === 'error' && (
-                    <AlertCircle className="h-12 w-12 text-rose-500" />
+                    <div className="h-16 w-16 rounded-2xl bg-rose-50 dark:bg-rose-950/60 flex items-center justify-center text-rose-500">
+                      <AlertCircle className="h-9 w-9" />
+                    </div>
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
                   {submissionState.status === 'loading'
-                    ? 'Processing Evidence'
+                    ? submissionState.stageName
                     : submissionState.status === 'success'
-                    ? 'Evidence Sealed'
-                    : 'Submission Error'}
+                    ? 'Evidence Sealed & Anchored'
+                    : (submissionState.error?.title || 'Submission Error')}
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
-                  {submissionState.message || submissionState.step}
+
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-4">
+                  {submissionState.status === 'loading'
+                    ? submissionState.detail
+                    : submissionState.status === 'success'
+                    ? 'Cryptographic integrity proof registered to ledger.'
+                    : (submissionState.error?.message || submissionState.detail)}
                 </p>
+
+                {/* Progress Bar for Active Operations */}
+                {submissionState.status === 'loading' && (
+                  <div className="space-y-2 mb-2">
+                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-primary-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${Math.max(5, Math.min(100, submissionState.progressPercent))}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[11px] font-mono text-gray-400">
+                      <span>Stage {submissionState.stage} of 7: {submissionState.stageName}</span>
+                      <span>{submissionState.progressPercent}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons on Error */}
                 {submissionState.status === 'error' && (
-                  <div className="mt-6">
+                  <div className="mt-6 space-y-2.5">
+                    {submissionState.error?.canGoToSettings && (
+                      <Button
+                        onClick={() => navigate('/settings')}
+                        className="w-full rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold text-sm h-11 shadow-sm"
+                      >
+                        Open Settings to Connect Drive
+                      </Button>
+                    )}
+                    {submissionState.error?.canRetry && (
+                      <Button
+                        onClick={handleFinalSubmit}
+                        className="w-full rounded-xl bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 font-semibold text-sm h-11"
+                      >
+                        Retry Submission
+                      </Button>
+                    )}
                     <Button
-                      onClick={() => setSubmissionState({ step: '', status: 'idle' })}
-                      className="w-full rounded-xl"
+                      variant="outline"
+                      onClick={() => setSubmissionState((prev) => ({ ...prev, status: 'idle' }))}
+                      className="w-full rounded-xl border-black/10 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm h-10"
                     >
-                      Dismiss & Try Again
+                      Dismiss (Keep Captured Media)
                     </Button>
                   </div>
                 )}

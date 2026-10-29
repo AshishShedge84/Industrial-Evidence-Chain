@@ -88,6 +88,76 @@ export async function checkFolderAccess(folderId: string): Promise<FolderCheckRe
   }
 }
 
+export interface CreateResumableSessionParams {
+  folderId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  evidenceId?: string;
+  clientChecksum?: string;
+}
+
+export interface ResumableSessionResult {
+  sessionUrl: string;
+  folderId: string;
+  fileName: string;
+}
+
+/**
+ * Initializes an authorized Google Drive resumable upload session.
+ * The client can transfer bytes directly to Google Drive via PUT without passing through Vercel.
+ */
+export async function createResumableUploadSession(
+  params: CreateResumableSessionParams
+): Promise<ResumableSessionResult> {
+  const accessToken = await getValidAccessToken();
+
+  const metadata = {
+    name: params.fileName,
+    parents: [params.folderId],
+    description: `IEC industrial evidence media for evidence ${params.evidenceId || 'unassigned'} (SHA-256: ${params.clientChecksum || 'pending'})`,
+    properties: {
+      iecEvidenceId: params.evidenceId || '',
+      iecChecksum: params.clientChecksum || '',
+      iecInitiatedAt: new Date().toISOString(),
+    },
+  };
+
+  const initUrl = `${DRIVE_CONFIG.DRIVE_UPLOAD_BASE}/files?uploadType=resumable&supportsAllDrives=true`;
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json; charset=UTF-8',
+    'X-Upload-Content-Type': params.mimeType,
+  };
+
+  if (params.fileSize && params.fileSize > 0) {
+    headers['X-Upload-Content-Length'] = params.fileSize.toString();
+  }
+
+  const response = await fetch(initUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(metadata),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google Drive failed to create upload session (HTTP ${response.status}): ${errorText}`);
+  }
+
+  const sessionUrl = response.headers.get('Location') || response.headers.get('location');
+  if (!sessionUrl) {
+    throw new Error('Google Drive did not return a valid resumable upload Location header.');
+  }
+
+  return {
+    sessionUrl,
+    folderId: params.folderId,
+    fileName: params.fileName,
+  };
+}
+
 export interface DriveUploadParams {
   folderId: string;
   fileName: string;

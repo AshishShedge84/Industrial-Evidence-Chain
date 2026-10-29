@@ -12,6 +12,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/config/firebase';
 import { SEEDED_EVIDENCE } from '@/data/authoritativeSeed';
 import { googleDriveService } from '@services/drive/googleDriveService';
+import { calculateFileSha256, validateMediaFile } from '@/utils/cryptoHash';
 import type { 
   Evidence, 
   CreateEvidenceRequest, 
@@ -29,7 +30,7 @@ export interface EvidenceService {
   getEvidenceList(params?: EvidenceSearchParams): Promise<ApiResponse<EvidenceListResponse>>;
   getEvidence(id: string): Promise<ApiResponse<Evidence>>;
   createEvidence(data: CreateEvidenceRequest): Promise<ApiResponse<Evidence>>;
-  uploadMedia(evidenceId: string, files: File[], onProgress?: (progress: number) => void): Promise<ApiResponse<Evidence>>;
+  uploadMedia(evidenceId: string, files: File[], onProgress?: (progress: number, stageInfo?: string) => void): Promise<ApiResponse<Evidence>>;
   submitEvidence(evidenceId: string): Promise<ApiResponse<Evidence>>;
   anchorEvidence(evidenceId: string): Promise<ApiResponse<BlockchainProof>>;
   verifyEvidence(evidenceId: string): Promise<ApiResponse<VerificationResult>>;
@@ -302,13 +303,13 @@ class FirebaseEvidenceServiceImpl implements EvidenceService {
   async uploadMedia(
     evidenceId: string,
     files: File[],
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, stageInfo?: string) => void
   ): Promise<ApiResponse<Evidence>> {
     try {
       const evRef = doc(db, 'evidence', evidenceId);
       const evSnap = await getDoc(evRef);
       if (!evSnap.exists()) {
-        throw new Error(`Evidence ${evidenceId} not found`);
+        throw new Error(`Evidence ${evidenceId} not found in database.`);
       }
 
       const evidenceData = normalizeEvidence(evSnap.id, evSnap.data());
@@ -316,60 +317,76 @@ class FirebaseEvidenceServiceImpl implements EvidenceService {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const arrayBuffer = await file.arrayBuffer();
-        const checksum = await sha256(arrayBuffer);
+
+        // 1. Validation
+        const validation = validateMediaFile(file);
+        if (!validation.valid) {
+          throw new Error(`File "${file.name || 'attachment'}": ${validation.error}`);
+        }
+
         const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|ogg)$/i.test(file.name);
         const fileType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
 
-        let mediaUrl = '';
-        let driveFileId: string | undefined;
-        let driveFolderId: string | undefined;
-
-        // 1. Attempt upload to configured Google Drive storage first
-        try {
-          const driveRes = await googleDriveService.uploadMedia({
-            file,
-            evidenceId,
-            fileType,
-            clientChecksum: checksum,
-          });
-
-          if (driveRes.success && driveRes.data) {
-            driveFileId = driveRes.data.fileId;
-            driveFolderId = driveRes.data.folderId;
-            mediaUrl = googleDriveService.getFileProxyUrl(driveRes.data.fileId);
-            if (onProgress) {
-              onProgress(Math.round(((i + 1) * 100) / files.length));
-            }
-          }
-        } catch {
-          // If Google Drive credentials are not yet configured on the server, fall back to Cloud Storage
+        if (onProgress) {
+          onProgress(
+            Math.round((i * 100) / files.length + 5),
+            `Hashing ${fileType} ${i + 1} of ${files.length}...`
+          );
         }
 
-        // 2. Cloud Storage fallback if Google Drive is not yet connected
-        if (!mediaUrl) {
-          const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-          const storagePath = `evidence/${evidenceId}/${fileName}`;
-          const fileRef = ref(storage, storagePath);
-
-          const uploadTask = uploadBytesResumable(fileRef, file);
-
-          await new Promise<void>((resolve, reject) => {
-            uploadTask.on(
-              'state_changed',
-              (snapshot) => {
-                if (onProgress) {
-                  const percent = ((snapshot.bytesTransferred / snapshot.totalBytes) * 100) / files.length + (i * 100) / files.length;
-                  onProgress(Math.round(percent));
-                }
-              },
-              reject,
-              () => resolve()
+        // 2. Mobile-safe chunked SHA-256 calculation
+        const checksum = await calculateFileSha256(file, (hashPercent) => {
+          if (onProgress) {
+            const overall = Math.round(
+              (i * 100) / files.length + (hashPercent * 0.2) / files.length
             );
-          });
+            onProgress(overall, `Hashing ${file.name || fileType} (${hashPercent}%)...`);
+          }
+        });
 
-          mediaUrl = await getDownloadURL(fileRef);
+        // 3. Upload to Google Drive Enterprise Storage via direct resumable stream
+        if (onProgress) {
+          onProgress(
+            Math.round((i * 100) / files.length + 25),
+            `Connecting to secure Drive vault for ${file.name || fileType}...`
+          );
         }
+
+        const driveRes = await googleDriveService.uploadMedia({
+          file,
+          evidenceId,
+          fileType,
+          clientChecksum: checksum,
+          onProgress: (uploadPercent, loadedBytes, totalBytes) => {
+            if (onProgress) {
+              const overall = Math.round(
+                (i * 100) / files.length + 25 + (uploadPercent * 0.7) / files.length
+              );
+              const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+              const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
+              onProgress(
+                overall,
+                `Uploading ${file.name || fileType}: ${loadedMb}MB / ${totalMb}MB (${uploadPercent}%)`
+              );
+            }
+          },
+        });
+
+        if (!driveRes.success || !driveRes.data) {
+          const errMsg = driveRes.error?.message || 'Google Drive upload failed';
+          const errCode = driveRes.error?.code;
+
+          if (errCode === 'DRIVE_NOT_CONNECTED') {
+            throw new Error(
+              'Google Drive Enterprise Storage is not connected. An administrator must connect Google Drive in Settings before evidence media can be stored.'
+            );
+          }
+          throw new Error(`Media upload failed: ${errMsg}`);
+        }
+
+        const driveFileId = driveRes.data.fileId;
+        const driveFolderId = driveRes.data.folderId;
+        const mediaUrl = googleDriveService.getFileProxyUrl(driveFileId);
 
         newMedia.push({
           id: crypto.randomUUID(),
@@ -383,10 +400,19 @@ class FirebaseEvidenceServiceImpl implements EvidenceService {
           driveFileId,
           driveFolderId,
         });
+
+        if (onProgress) {
+          onProgress(
+            Math.round(((i + 1) * 100) / files.length),
+            `Verified ${fileType} ${i + 1} of ${files.length}`
+          );
+        }
       }
 
+      // 4. Update Firestore with complete metadata
       await updateDoc(evRef, {
         mediaReferences: newMedia,
+        mediaHashes: newMedia.map((m) => m.checksum).filter(Boolean),
         updatedAt: new Date().toISOString(),
       });
 
