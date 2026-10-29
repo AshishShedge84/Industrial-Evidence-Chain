@@ -4,6 +4,7 @@ import { useApp } from '@context/AppContext';
 import { PageContainer } from '@components/layout';
 import { Button } from '@components/ui/Button';
 import { Bell, Shield, Moon, Sun, Monitor, Smartphone, Globe, Save } from 'lucide-react';
+import { GoogleDriveIntegrationCard } from '@components/settings/GoogleDriveIntegrationCard';
 
 export function SettingsPage() {
   const { theme, setTheme, addToast } = useApp();
@@ -203,6 +204,9 @@ export function SettingsPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Enterprise Google Drive Storage Integration */}
+        <GoogleDriveIntegrationCard />
 
         <div className="flex justify-end pt-4 pb-12">
           <Button onClick={handleSubmit} loading={isSaving} className="min-w-[140px] rounded-xl">

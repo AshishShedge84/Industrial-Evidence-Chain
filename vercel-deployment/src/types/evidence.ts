@@ -41,6 +41,8 @@ export interface MediaReference {
   checksum?: string;
   capturedAt: string;
   uploadedAt?: string;
+  driveFileId?: string;
+  driveFolderId?: string;
 }
 
 export interface Evidence {

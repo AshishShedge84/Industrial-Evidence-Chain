@@ -221,3 +221,4 @@ export function TermsOfServicePage() {
     </div>
   );
 }
+

@@ -47,6 +47,22 @@ class FirebaseApiClient {
     const queryString = url.includes('?') ? url.split('?')[1] : '';
     const params = new URLSearchParams(queryString);
 
+    // 0. Forward genuine server-side API routes directly
+    if (cleanUrl.startsWith('/api/')) {
+      try {
+        const token = this.authToken || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null);
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(url, { headers });
+        return (await res.json()) as ApiResponse<T>;
+      } catch (err: any) {
+        return {
+          success: false,
+          error: { code: 'NETWORK_ERROR', message: err.message, statusCode: 500 },
+        };
+      }
+    }
+
     // 1. Auth routes
     if (cleanUrl === '/auth/me') {
       return (await authService.getCurrentUser()) as unknown as ApiResponse<T>;
@@ -149,6 +165,26 @@ class FirebaseApiClient {
 
   async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
     const cleanUrl = url.split('?')[0];
+
+    // 0. Forward genuine server-side API routes directly
+    if (cleanUrl.startsWith('/api/')) {
+      try {
+        const token = this.authToken || (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: data ? JSON.stringify(data) : undefined,
+        });
+        return (await res.json()) as ApiResponse<T>;
+      } catch (err: any) {
+        return {
+          success: false,
+          error: { code: 'NETWORK_ERROR', message: err.message, statusCode: 500 },
+        };
+      }
+    }
 
     // Auth
     if (cleanUrl === '/auth/login') {

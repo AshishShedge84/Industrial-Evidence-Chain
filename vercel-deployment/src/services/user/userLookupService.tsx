@@ -226,3 +226,4 @@ export const UserDisplayName: React.FC<{
   const { name } = useUserLookup(userId, fallback);
   return <span className={className}>{name}</span>;
 };
+

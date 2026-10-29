@@ -11,6 +11,7 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/config/firebase';
 import { SEEDED_EVIDENCE } from '@/data/authoritativeSeed';
+import { googleDriveService } from '@services/drive/googleDriveService';
 import type { 
   Evidence, 
   CreateEvidenceRequest, 
@@ -317,37 +318,70 @@ class FirebaseEvidenceServiceImpl implements EvidenceService {
         const file = files[i];
         const arrayBuffer = await file.arrayBuffer();
         const checksum = await sha256(arrayBuffer);
-        const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-        const storagePath = `evidence/${evidenceId}/${fileName}`;
-        const fileRef = ref(storage, storagePath);
+        const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|ogg)$/i.test(file.name);
+        const fileType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
 
-        const uploadTask = uploadBytesResumable(fileRef, file);
+        let mediaUrl = '';
+        let driveFileId: string | undefined;
+        let driveFolderId: string | undefined;
 
-        await new Promise<void>((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              if (onProgress) {
-                const percent = ((snapshot.bytesTransferred / snapshot.totalBytes) * 100) / files.length + (i * 100) / files.length;
-                onProgress(Math.round(percent));
-              }
-            },
-            reject,
-            () => resolve()
-          );
-        });
+        // 1. Attempt upload to configured Google Drive storage first
+        try {
+          const driveRes = await googleDriveService.uploadMedia({
+            file,
+            evidenceId,
+            fileType,
+            clientChecksum: checksum,
+          });
 
-        const downloadUrl = await getDownloadURL(fileRef);
+          if (driveRes.success && driveRes.data) {
+            driveFileId = driveRes.data.fileId;
+            driveFolderId = driveRes.data.folderId;
+            mediaUrl = googleDriveService.getFileProxyUrl(driveRes.data.fileId);
+            if (onProgress) {
+              onProgress(Math.round(((i + 1) * 100) / files.length));
+            }
+          }
+        } catch {
+          // If Google Drive credentials are not yet configured on the server, fall back to Cloud Storage
+        }
+
+        // 2. Cloud Storage fallback if Google Drive is not yet connected
+        if (!mediaUrl) {
+          const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+          const storagePath = `evidence/${evidenceId}/${fileName}`;
+          const fileRef = ref(storage, storagePath);
+
+          const uploadTask = uploadBytesResumable(fileRef, file);
+
+          await new Promise<void>((resolve, reject) => {
+            uploadTask.on(
+              'state_changed',
+              (snapshot) => {
+                if (onProgress) {
+                  const percent = ((snapshot.bytesTransferred / snapshot.totalBytes) * 100) / files.length + (i * 100) / files.length;
+                  onProgress(Math.round(percent));
+                }
+              },
+              reject,
+              () => resolve()
+            );
+          });
+
+          mediaUrl = await getDownloadURL(fileRef);
+        }
 
         newMedia.push({
           id: crypto.randomUUID(),
-          type: file.type.startsWith('video') ? 'video' : 'photo',
-          url: downloadUrl,
+          type: fileType,
+          url: mediaUrl,
           size: file.size,
-          mimeType: file.type,
+          mimeType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
           checksum,
           capturedAt: new Date().toISOString(),
           uploadedAt: new Date().toISOString(),
+          driveFileId,
+          driveFolderId,
         });
       }
 
