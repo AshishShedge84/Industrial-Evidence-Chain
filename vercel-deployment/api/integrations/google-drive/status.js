@@ -188,6 +188,82 @@ async function checkFolderAccess(folderId, req) {
   }
 }
 
+// api-src/_lib/folderStore.ts
+import crypto2 from "crypto";
+var memoryFolderStore = null;
+function decryptConfig(encryptedString, secret) {
+  try {
+    const [ivHex, tagHex, dataHex] = encryptedString.split(".");
+    if (!ivHex || !tagHex || !dataHex) return null;
+    const key = crypto2.createHash("sha256").update(secret).digest();
+    const decipher = crypto2.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+async function getEffectiveFolderConfig(req) {
+  const env = getDriveEnv();
+  if (memoryFolderStore && memoryFolderStore.foldersVerified) {
+    return { ...memoryFolderStore, source: "memory" };
+  }
+  if (req?.headers?.cookie) {
+    const cookies = req.headers.cookie.split(";").map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith("iec_drive_folders="));
+    if (cookie) {
+      const encryptedValue = cookie.replace("iec_drive_folders=", "");
+      const decrypted = decryptConfig(encryptedValue, env.stateSecret);
+      if (decrypted) {
+        try {
+          const parsed = JSON.parse(decrypted);
+          if (parsed.photoFolderId && parsed.videoFolderId) {
+            const config = { ...parsed, source: "cookie" };
+            memoryFolderStore = config;
+            return config;
+          }
+        } catch {
+        }
+      }
+    }
+  }
+  const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${env.firebaseProjectId}/databases/(default)/documents/system_settings/google_drive`;
+  try {
+    const res = await fetch(firestoreUrl);
+    if (res.ok) {
+      const doc = await res.json();
+      const fields = doc.fields || {};
+      const rootFolderId = fields.rootFolderId?.stringValue;
+      const photoFolderId = fields.photoFolderId?.stringValue;
+      const videoFolderId = fields.videoFolderId?.stringValue;
+      if (photoFolderId && videoFolderId) {
+        const config = {
+          rootFolderId: rootFolderId || env.rootFolderId,
+          photoFolderId,
+          videoFolderId,
+          rootFolderName: fields.rootFolderName?.stringValue,
+          photoFolderName: fields.photoFolderName?.stringValue,
+          videoFolderName: fields.videoFolderName?.stringValue,
+          foldersVerified: fields.foldersVerified?.booleanValue ?? true,
+          verifiedAt: fields.verifiedAt?.stringValue,
+          source: "firestore"
+        };
+        memoryFolderStore = config;
+        return config;
+      }
+    }
+  } catch {
+  }
+  return {
+    rootFolderId: env.rootFolderId,
+    photoFolderId: env.photoFolderId,
+    videoFolderId: env.videoFolderId,
+    foldersVerified: false,
+    source: "environment"
+  };
+}
+
 // api-src/_lib/authMiddleware.ts
 function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
@@ -206,16 +282,17 @@ async function handler(req, res) {
     const isConfigured = Boolean(env.clientId && env.clientSecret);
     const integration = await getStoredDriveIntegration(req);
     const isConnected = Boolean(integration?.refreshToken);
+    const effectiveFolders = await getEffectiveFolderConfig(req);
     let folderStatus = {
-      root: { id: env.rootFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" },
-      photos: { id: env.photoFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" },
-      videos: { id: env.videoFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" }
+      root: { id: effectiveFolders.rootFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" },
+      photos: { id: effectiveFolders.photoFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" },
+      videos: { id: effectiveFolders.videoFolderId, accessible: false, error: isConnected ? void 0 : "Drive not connected" }
     };
     if (isConnected) {
       const [rootCheck, photoCheck, videoCheck] = await Promise.all([
-        checkFolderAccess(env.rootFolderId, req),
-        checkFolderAccess(env.photoFolderId, req),
-        checkFolderAccess(env.videoFolderId, req)
+        checkFolderAccess(effectiveFolders.rootFolderId, req),
+        checkFolderAccess(effectiveFolders.photoFolderId, req),
+        checkFolderAccess(effectiveFolders.videoFolderId, req)
       ]);
       folderStatus = {
         root: rootCheck,
@@ -236,6 +313,14 @@ async function handler(req, res) {
           rootFolderId: env.rootFolderId,
           photoFolderId: env.photoFolderId,
           videoFolderId: env.videoFolderId
+        },
+        effectiveFolders: {
+          rootFolderId: effectiveFolders.rootFolderId,
+          photoFolderId: effectiveFolders.photoFolderId,
+          videoFolderId: effectiveFolders.videoFolderId,
+          source: effectiveFolders.source,
+          foldersVerified: effectiveFolders.foldersVerified,
+          verifiedAt: effectiveFolders.verifiedAt
         },
         setupStatus: {
           hasClientId: Boolean(env.clientId),

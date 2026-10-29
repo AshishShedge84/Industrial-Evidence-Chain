@@ -381,6 +381,11 @@ class FirebaseEvidenceServiceImpl implements EvidenceService {
               'Google Drive Enterprise Storage is not connected. An administrator must connect Google Drive in Settings before evidence media can be stored.'
             );
           }
+          if (errCode === 'DRIVE_FOLDER_NOT_FOUND') {
+            throw new Error(
+              `Google Drive destination folder is not authorized under the 'drive.file' scope. An administrator must open Settings > Google Drive Storage and authorize the destination folder via Google Picker or click Auto-Provision Subfolders.`
+            );
+          }
           throw new Error(`Media upload failed: ${errMsg}`);
         }
 

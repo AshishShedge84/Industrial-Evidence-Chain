@@ -183,6 +183,82 @@ async function createResumableUploadSession(params, req) {
   };
 }
 
+// api-src/_lib/folderStore.ts
+import crypto2 from "crypto";
+var memoryFolderStore = null;
+function decryptConfig(encryptedString, secret) {
+  try {
+    const [ivHex, tagHex, dataHex] = encryptedString.split(".");
+    if (!ivHex || !tagHex || !dataHex) return null;
+    const key = crypto2.createHash("sha256").update(secret).digest();
+    const decipher = crypto2.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+async function getEffectiveFolderConfig(req) {
+  const env = getDriveEnv();
+  if (memoryFolderStore && memoryFolderStore.foldersVerified) {
+    return { ...memoryFolderStore, source: "memory" };
+  }
+  if (req?.headers?.cookie) {
+    const cookies = req.headers.cookie.split(";").map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith("iec_drive_folders="));
+    if (cookie) {
+      const encryptedValue = cookie.replace("iec_drive_folders=", "");
+      const decrypted = decryptConfig(encryptedValue, env.stateSecret);
+      if (decrypted) {
+        try {
+          const parsed = JSON.parse(decrypted);
+          if (parsed.photoFolderId && parsed.videoFolderId) {
+            const config = { ...parsed, source: "cookie" };
+            memoryFolderStore = config;
+            return config;
+          }
+        } catch {
+        }
+      }
+    }
+  }
+  const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${env.firebaseProjectId}/databases/(default)/documents/system_settings/google_drive`;
+  try {
+    const res = await fetch(firestoreUrl);
+    if (res.ok) {
+      const doc = await res.json();
+      const fields = doc.fields || {};
+      const rootFolderId = fields.rootFolderId?.stringValue;
+      const photoFolderId = fields.photoFolderId?.stringValue;
+      const videoFolderId = fields.videoFolderId?.stringValue;
+      if (photoFolderId && videoFolderId) {
+        const config = {
+          rootFolderId: rootFolderId || env.rootFolderId,
+          photoFolderId,
+          videoFolderId,
+          rootFolderName: fields.rootFolderName?.stringValue,
+          photoFolderName: fields.photoFolderName?.stringValue,
+          videoFolderName: fields.videoFolderName?.stringValue,
+          foldersVerified: fields.foldersVerified?.booleanValue ?? true,
+          verifiedAt: fields.verifiedAt?.stringValue,
+          source: "firestore"
+        };
+        memoryFolderStore = config;
+        return config;
+      }
+    }
+  } catch {
+  }
+  return {
+    rootFolderId: env.rootFolderId,
+    photoFolderId: env.photoFolderId,
+    videoFolderId: env.videoFolderId,
+    foldersVerified: false,
+    source: "environment"
+  };
+}
+
 // api-src/_lib/authMiddleware.ts
 async function authenticateRequest(req) {
   const authHeader = req.headers.authorization;
@@ -279,27 +355,46 @@ async function handler(req, res) {
         error: "Missing required field: fileName"
       });
     }
-    const targetFolderId = fileType === "video" ? env.videoFolderId : env.photoFolderId;
-    const session = await createResumableUploadSession(
-      {
-        folderId: targetFolderId,
-        fileName: fileName.replace(/\s+/g, "_"),
-        mimeType,
-        fileSize: Number(fileSize) || 0,
-        evidenceId,
-        clientChecksum
-      },
-      req
-    );
-    return sendJson(res, 200, {
-      success: true,
-      data: {
-        sessionUrl: session.sessionUrl,
-        folderId: session.folderId,
-        fileName: session.fileName,
-        fileType
+    const effectiveFolders = await getEffectiveFolderConfig(req);
+    const targetFolderId = fileType === "video" ? effectiveFolders.videoFolderId : effectiveFolders.photoFolderId;
+    try {
+      const session = await createResumableUploadSession(
+        {
+          folderId: targetFolderId,
+          fileName: fileName.replace(/\s+/g, "_"),
+          mimeType,
+          fileSize: Number(fileSize) || 0,
+          evidenceId,
+          clientChecksum
+        },
+        req
+      );
+      return sendJson(res, 200, {
+        success: true,
+        data: {
+          sessionUrl: session.sessionUrl,
+          folderId: session.folderId,
+          fileName: session.fileName,
+          fileType,
+          folderSource: effectiveFolders.source
+        }
+      });
+    } catch (sessionErr) {
+      const errMsg = sessionErr.message || "";
+      if (errMsg.includes("404") || errMsg.includes("File not found")) {
+        return sendJson(res, 404, {
+          success: false,
+          error: {
+            code: "DRIVE_FOLDER_NOT_FOUND",
+            message: `Google Drive destination folder '${targetFolderId}' returned HTTP 404. Under the least-privilege 'drive.file' OAuth scope, folders created outside this application must be authorized via Google Picker or auto-provisioned in Settings > Google Drive Storage.`,
+            folderId: targetFolderId,
+            fileType,
+            help: "Go to Settings > Google Drive Storage > Authorise Evidence Folders or Auto-Provision to resolve."
+          }
+        });
       }
-    });
+      throw sessionErr;
+    }
   } catch (err) {
     console.error("Failed to create resumable upload session:", err);
     return sendJson(res, 500, {

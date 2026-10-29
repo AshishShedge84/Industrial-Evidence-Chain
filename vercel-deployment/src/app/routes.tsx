@@ -7,7 +7,7 @@ import { AssetsPage, AssetDetailsPage, AssetHistoryPage } from '@pages/assets';
 import { EvidenceDetailsPage, EvidenceHistoryPage } from '@pages/evidence';
 import { CaptureEvidencePage } from '../pages/technician/evidence/CaptureEvidencePage';
 import { VerificationPage } from '@pages/verification';
-import { AuditDashboardPage } from '@pages/audit';
+import { SystemAuditReportsPage, AuditDashboardPage } from '@pages/audit';
 import { ProfilePage } from '@pages/profile';
 import { SettingsPage } from '@pages/settings';
 import { UsersPage } from '@pages/admin';
@@ -89,7 +89,15 @@ export const router = createBrowserRouter([
       },
       {
         path: 'audit',
-        element: <RoleRoute allowedRoles={['Admin']}><AuditDashboardPage /></RoleRoute>,
+        element: <RoleRoute allowedRoles={['Auditor', 'Admin']}><SystemAuditReportsPage /></RoleRoute>,
+      },
+      {
+        path: 'audit/reports',
+        element: <RoleRoute allowedRoles={['Auditor', 'Admin']}><SystemAuditReportsPage /></RoleRoute>,
+      },
+      {
+        path: 'auditor/reports',
+        element: <RoleRoute allowedRoles={['Auditor', 'Admin']}><SystemAuditReportsPage /></RoleRoute>,
       },
       {
         path: 'profile',

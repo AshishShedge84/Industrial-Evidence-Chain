@@ -95,6 +95,26 @@ service cloud.firestore {
     //      - ip_address / ipAddress: string (max 100 chars)
     //      - created_at / createdAt: string or timestamp
     //
+    // 7. system_settings/{settingId}
+    //    Fields (e.g., google_drive):
+    //      - id / settingId / setting_id: string (optional, max 128 chars)
+    //      - rootFolderId: string (optional, max 128 chars)
+    //      - photoFolderId: string (optional, max 128 chars)
+    //      - videoFolderId: string (optional, max 128 chars)
+    //      - rootFolderName: string (optional, max 200 chars)
+    //      - photoFolderName: string (optional, max 200 chars)
+    //      - videoFolderName: string (optional, max 200 chars)
+    //      - foldersVerified: bool (optional)
+    //      - verifiedAt: string or timestamp (optional, max 50 chars if string)
+    //      - accountEmail: string (optional, max 100 chars)
+    //      - status: string (optional, max 50 chars)
+    //      - source: string (optional, max 50 chars)
+    //      - description: string (optional, max 500 chars)
+    //      - enabled: bool (optional)
+    //      - createdAt, created_at, updatedAt, updated_at: string or timestamp
+    //      - createdBy, created_by, updatedBy, updated_by: string (optional, max 128 chars)
+    //      - metadata: map (optional)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -269,6 +289,46 @@ service cloud.firestore {
         (!('ipAddress' in data) || (data.ipAddress is string && data.ipAddress.size() <= 100));
     }
 
+    function isValidSystemSetting(data) {
+      let allowed = [
+        'id', 'settingId', 'setting_id',
+        'rootFolderId', 'photoFolderId', 'videoFolderId',
+        'rootFolderName', 'photoFolderName', 'videoFolderName',
+        'foldersVerified', 'verifiedAt', 'accountEmail', 'status',
+        'source', 'description', 'enabled',
+        'createdAt', 'created_at', 'updatedAt', 'updated_at',
+        'createdBy', 'created_by', 'updatedBy', 'updated_by',
+        'metadata'
+      ];
+      return data.keys().hasOnly(allowed) &&
+        data.keys().size() <= 30 &&
+        (!('rootFolderId' in data) || (data.rootFolderId is string && data.rootFolderId.size() <= 128)) &&
+        (!('photoFolderId' in data) || (data.photoFolderId is string && data.photoFolderId.size() <= 128)) &&
+        (!('videoFolderId' in data) || (data.videoFolderId is string && data.videoFolderId.size() <= 128)) &&
+        (!('rootFolderName' in data) || (data.rootFolderName is string && data.rootFolderName.size() <= 200)) &&
+        (!('photoFolderName' in data) || (data.photoFolderName is string && data.photoFolderName.size() <= 200)) &&
+        (!('videoFolderName' in data) || (data.videoFolderName is string && data.videoFolderName.size() <= 200)) &&
+        (!('foldersVerified' in data) || (data.foldersVerified is bool)) &&
+        (!('accountEmail' in data) || (data.accountEmail is string && data.accountEmail.size() <= 100)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 50)) &&
+        (!('source' in data) || (data.source is string && data.source.size() <= 50)) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+        (!('enabled' in data) || (data.enabled is bool)) &&
+        (!('settingId' in data) || (data.settingId is string && data.settingId.size() <= 128)) &&
+        (!('setting_id' in data) || (data.setting_id is string && data.setting_id.size() <= 128)) &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
+        (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 128)) &&
+        (!('created_by' in data) || (data.created_by is string && data.created_by.size() <= 128)) &&
+        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+        (!('updated_by' in data) || (data.updated_by is string && data.updated_by.size() <= 128)) &&
+        (!('verifiedAt' in data) || (data.verifiedAt is timestamp || (data.verifiedAt is string && data.verifiedAt.size() <= 50))) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp || (data.createdAt is string && data.createdAt.size() <= 50))) &&
+        (!('created_at' in data) || (data.created_at is timestamp || (data.created_at is string && data.created_at.size() <= 50))) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp || (data.updatedAt is string && data.updatedAt.size() <= 50))) &&
+        (!('updated_at' in data) || (data.updated_at is timestamp || (data.updated_at is string && data.updated_at.size() <= 50))) &&
+        (!('metadata' in data) || (data.metadata is map));
+    }
+
     // ===============================================================
     // Industrial Evidence Chain (IEC) Security Rules
     // ===============================================================
@@ -328,6 +388,17 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true;
       allow update, delete: if false;
+    }
+
+    // 7. System Settings: system_settings/{settingId}
+    // Non-sensitive configuration such as verified Google Drive folder IDs
+    match /system_settings/{settingId} {
+      // Authenticated users and integration status checks (public inspection of non-sensitive folder status)
+      allow read: if true;
+      // Allow create and update if valid settings structure is written or by administrator
+      allow create, update: if isAdmin() || isValidSystemSetting(request.resource.data);
+      // Deletions strictly restricted to administrators
+      allow delete: if isAdmin();
     }
 
     // ===============================================================

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { getDriveEnv } from '../../_lib/driveConfig.js';
 import { getStoredDriveIntegration } from '../../_lib/driveOAuth.js';
 import { createResumableUploadSession } from '../../_lib/driveClient.js';
+import { getEffectiveFolderConfig } from '../../_lib/folderStore.js';
 import { authenticateRequest, sendJson } from '../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -57,34 +58,53 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       });
     }
 
-    // 4. Select dedicated destination folder
+    // 4. Resolve effective authorized folder IDs (reads verified folders from storage cascade)
+    const effectiveFolders = await getEffectiveFolderConfig(req);
     const targetFolderId =
       fileType === 'video'
-        ? env.videoFolderId
-        : env.photoFolderId;
+        ? effectiveFolders.videoFolderId
+        : effectiveFolders.photoFolderId;
 
     // 5. Generate secure, authorized resumable upload session directly on Google Drive
-    const session = await createResumableUploadSession(
-      {
-        folderId: targetFolderId,
-        fileName: fileName.replace(/\s+/g, '_'),
-        mimeType,
-        fileSize: Number(fileSize) || 0,
-        evidenceId,
-        clientChecksum,
-      },
-      req
-    );
+    try {
+      const session = await createResumableUploadSession(
+        {
+          folderId: targetFolderId,
+          fileName: fileName.replace(/\s+/g, '_'),
+          mimeType,
+          fileSize: Number(fileSize) || 0,
+          evidenceId,
+          clientChecksum,
+        },
+        req
+      );
 
-    return sendJson(res, 200, {
-      success: true,
-      data: {
-        sessionUrl: session.sessionUrl,
-        folderId: session.folderId,
-        fileName: session.fileName,
-        fileType,
-      },
-    });
+      return sendJson(res, 200, {
+        success: true,
+        data: {
+          sessionUrl: session.sessionUrl,
+          folderId: session.folderId,
+          fileName: session.fileName,
+          fileType,
+          folderSource: effectiveFolders.source,
+        },
+      });
+    } catch (sessionErr: any) {
+      const errMsg = sessionErr.message || '';
+      if (errMsg.includes('404') || errMsg.includes('File not found')) {
+        return sendJson(res, 404, {
+          success: false,
+          error: {
+            code: 'DRIVE_FOLDER_NOT_FOUND',
+            message: `Google Drive destination folder '${targetFolderId}' returned HTTP 404. Under the least-privilege 'drive.file' OAuth scope, folders created outside this application must be authorized via Google Picker or auto-provisioned in Settings > Google Drive Storage.`,
+            folderId: targetFolderId,
+            fileType,
+            help: 'Go to Settings > Google Drive Storage > Authorise Evidence Folders or Auto-Provision to resolve.',
+          },
+        });
+      }
+      throw sessionErr;
+    }
   } catch (err: any) {
     console.error('Failed to create resumable upload session:', err);
     return sendJson(res, 500, {

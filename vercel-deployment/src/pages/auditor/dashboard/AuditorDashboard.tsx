@@ -122,6 +122,7 @@ export function AuditorDashboard({ user }: { user: User }) {
             <QuickActions
               onVerifyEvidence={() => navigate(ROUTES.VERIFICATION)}
               onSearchAssets={() => navigate(ROUTES.ASSETS)}
+              onAuditReports={() => navigate(ROUTES.AUDIT)}
             />
           </div>
         </div>

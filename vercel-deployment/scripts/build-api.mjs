@@ -13,6 +13,8 @@ const endpoints = [
   'api-src/integrations/google-drive/upload.ts',
   'api-src/integrations/google-drive/create-upload-session.ts',
   'api-src/integrations/google-drive/create-folders.ts',
+  'api-src/integrations/google-drive/picker-token.ts',
+  'api-src/integrations/google-drive/verify-folder.ts',
   'api-src/integrations/google-drive/file.ts',
 ];
 

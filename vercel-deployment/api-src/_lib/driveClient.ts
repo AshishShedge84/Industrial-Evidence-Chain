@@ -322,3 +322,84 @@ export async function createDriveFolder(
   const data = (await res.json()) as any;
   return { id: data.id, name: data.name };
 }
+
+/**
+ * Search for an existing accessible folder in Google Drive by name and optional parent
+ */
+export async function searchFolder(
+  name: string,
+  parentFolderId?: string,
+  req?: IncomingMessage
+): Promise<{ id: string; name: string } | null> {
+  const accessToken = await getValidAccessToken(req);
+
+  let q = `mimeType = 'application/vnd.google-apps.folder' and name = '${name.replace(/'/g, "\\'")}' and trashed = false`;
+  if (parentFolderId) {
+    q += ` and '${parentFolderId}' in parents`;
+  }
+
+  const url = `${DRIVE_CONFIG.DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id,name,capabilities)&supportsAllDrives=true`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const data = (await res.json()) as any;
+  if (data.files && data.files.length > 0) {
+    return { id: data.files[0].id, name: data.files[0].name };
+  }
+
+  return null;
+}
+
+/**
+ * Get detailed metadata and capabilities for a Google Drive folder
+ */
+export async function getFolderMetadata(
+  folderId: string,
+  req?: IncomingMessage
+): Promise<{
+  id: string;
+  name: string;
+  mimeType: string;
+  accessible: boolean;
+  canAddChildren: boolean;
+  parents?: string[];
+  webViewLink?: string;
+  error?: string;
+}> {
+  const accessToken = await getValidAccessToken(req);
+
+  const url = `${DRIVE_CONFIG.DRIVE_API_BASE}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed,parents,capabilities,webViewLink&supportsAllDrives=true`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    return {
+      id: folderId,
+      name: 'Unknown',
+      mimeType: 'unknown',
+      accessible: false,
+      canAddChildren: false,
+      error: `HTTP ${res.status}: ${errText}`,
+    };
+  }
+
+  const data = (await res.json()) as any;
+  return {
+    id: data.id,
+    name: data.name,
+    mimeType: data.mimeType,
+    accessible: !data.trashed,
+    canAddChildren: Boolean(data.capabilities?.canAddChildren),
+    parents: data.parents,
+    webViewLink: data.webViewLink,
+  };
+}

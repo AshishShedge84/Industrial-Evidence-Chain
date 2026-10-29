@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { getDriveEnv, DRIVE_CONFIG } from '../../_lib/driveConfig.js';
 import { getStoredDriveIntegration } from '../../_lib/driveOAuth.js';
 import { checkFolderAccess, type FolderCheckResult } from '../../_lib/driveClient.js';
+import { getEffectiveFolderConfig } from '../../_lib/folderStore.js';
 import { sendJson } from '../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -16,22 +17,24 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const integration = await getStoredDriveIntegration(req);
     const isConnected = Boolean(integration?.refreshToken);
 
+    const effectiveFolders = await getEffectiveFolderConfig(req);
+
     let folderStatus: {
       root: FolderCheckResult;
       photos: FolderCheckResult;
       videos: FolderCheckResult;
     } = {
-      root: { id: env.rootFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
-      photos: { id: env.photoFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
-      videos: { id: env.videoFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
+      root: { id: effectiveFolders.rootFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
+      photos: { id: effectiveFolders.photoFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
+      videos: { id: effectiveFolders.videoFolderId, accessible: false, error: isConnected ? undefined : 'Drive not connected' },
     };
 
     if (isConnected) {
       // Test folder access in parallel
       const [rootCheck, photoCheck, videoCheck] = await Promise.all([
-        checkFolderAccess(env.rootFolderId, req),
-        checkFolderAccess(env.photoFolderId, req),
-        checkFolderAccess(env.videoFolderId, req),
+        checkFolderAccess(effectiveFolders.rootFolderId, req),
+        checkFolderAccess(effectiveFolders.photoFolderId, req),
+        checkFolderAccess(effectiveFolders.videoFolderId, req),
       ]);
 
       folderStatus = {
@@ -54,6 +57,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           rootFolderId: env.rootFolderId,
           photoFolderId: env.photoFolderId,
           videoFolderId: env.videoFolderId,
+        },
+        effectiveFolders: {
+          rootFolderId: effectiveFolders.rootFolderId,
+          photoFolderId: effectiveFolders.photoFolderId,
+          videoFolderId: effectiveFolders.videoFolderId,
+          source: effectiveFolders.source,
+          foldersVerified: effectiveFolders.foldersVerified,
+          verifiedAt: effectiveFolders.verifiedAt,
         },
         setupStatus: {
           hasClientId: Boolean(env.clientId),

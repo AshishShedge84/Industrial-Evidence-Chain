@@ -13,7 +13,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Users', href: '/admin/users', icon: Users, permission: 'users:read' },
-  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText, permission: 'users:read' },
+  { name: 'System Audit Reports', href: ROUTES.AUDIT, icon: FileText, permission: 'audit:read' },
   { name: 'Settings', href: '/settings', icon: Settings, permission: 'system:configure' },
 ] as const;
 
@@ -90,7 +90,9 @@ export function MobileNav({ onClose }: MobileNavProps) {
             {filteredAdminNav.length > 0 && (
               <>
                 <div className="h-px bg-gray-100 dark:bg-white/10 my-4" />
-                <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</p>
+                <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {user?.role === 'Auditor' ? 'Compliance' : 'Administration'}
+                </p>
                 <ul className="space-y-1 mt-2" role="list">
                   {filteredAdminNav.map((item) => {
                     const isActive = location.pathname.startsWith(item.href);

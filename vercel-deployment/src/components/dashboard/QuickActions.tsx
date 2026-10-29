@@ -1,4 +1,4 @@
-import { Plus, Camera, Search, Shield, QrCode } from 'lucide-react';
+import { Plus, Camera, Search, Shield, QrCode, FileText } from 'lucide-react';
 import { useAuth } from '@hooks/useAuth';
 
 interface QuickActionsProps {
@@ -9,6 +9,7 @@ interface QuickActionsProps {
   onScanQR?: () => void;
   onManageUsers?: () => void;
   onSystemSettings?: () => void;
+  onAuditReports?: () => void;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ export function QuickActions({
   onScanQR,
   onManageUsers,
   onSystemSettings,
+  onAuditReports,
   className = '',
 }: QuickActionsProps) {
   const { hasPermission, user } = useAuth();
@@ -61,6 +63,13 @@ export function QuickActions({
       icon: Plus,
       onClick: onCreateAsset,
       permission: 'assets:write',
+    },
+    {
+      label: 'System Audit Reports',
+      description: 'Inspect compliance logs and export CSV.',
+      icon: FileText,
+      onClick: onAuditReports,
+      permission: 'audit:read',
     },
     {
       label: 'Manage Users',

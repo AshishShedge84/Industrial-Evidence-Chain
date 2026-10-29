@@ -5,4 +5,5 @@ export * from './evidence';
 export * from './verification';
 export * from './user/userLookupService';
 export * from './drive/googleDriveService';
+export * from './audit/auditLogService';
 

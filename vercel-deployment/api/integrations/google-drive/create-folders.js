@@ -142,6 +142,51 @@ async function getValidAccessToken(req) {
   };
   return cachedAccessToken.token;
 }
+async function checkFolderAccess(folderId, req) {
+  try {
+    const accessToken = await getValidAccessToken(req);
+    const url = `${DRIVE_CONFIG.DRIVE_API_BASE}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed,capabilities&supportsAllDrives=true`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.trashed) {
+        return {
+          id: folderId,
+          name: data.name,
+          accessible: false,
+          error: "Folder exists in Google Drive but is located in the Trash."
+        };
+      }
+      return {
+        id: folderId,
+        name: data.name,
+        accessible: true
+      };
+    }
+    if (res.status === 404 || res.status === 403) {
+      return {
+        id: folderId,
+        accessible: false,
+        error: `Folder returned HTTP ${res.status}. Under the least-privilege 'drive.file' scope, Google Drive only permits access to folders created by this app or opened/selected via Google Picker.`,
+        scopeNotice: "To authorize an existing pre-created folder under drive.file, ensure the folder was created by or shared with the authenticated account, or authorize it via Google Picker."
+      };
+    }
+    const errData = await res.json().catch(() => ({}));
+    return {
+      id: folderId,
+      accessible: false,
+      error: errData.error?.message || `HTTP ${res.status} error accessing folder`
+    };
+  } catch (err) {
+    return {
+      id: folderId,
+      accessible: false,
+      error: err.message || "Failed to communicate with Google Drive API"
+    };
+  }
+}
 async function createDriveFolder(name, parentFolderId, req) {
   const accessToken = await getValidAccessToken(req);
   const metadata = {
@@ -165,6 +210,161 @@ async function createDriveFolder(name, parentFolderId, req) {
   }
   const data = await res.json();
   return { id: data.id, name: data.name };
+}
+async function searchFolder(name, parentFolderId, req) {
+  const accessToken = await getValidAccessToken(req);
+  let q = `mimeType = 'application/vnd.google-apps.folder' and name = '${name.replace(/'/g, "\\'")}' and trashed = false`;
+  if (parentFolderId) {
+    q += ` and '${parentFolderId}' in parents`;
+  }
+  const url = `${DRIVE_CONFIG.DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id,name,capabilities)&supportsAllDrives=true`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) {
+    return null;
+  }
+  const data = await res.json();
+  if (data.files && data.files.length > 0) {
+    return { id: data.files[0].id, name: data.files[0].name };
+  }
+  return null;
+}
+
+// api-src/_lib/folderStore.ts
+import crypto2 from "crypto";
+var memoryFolderStore = null;
+function encryptConfig(text, secret) {
+  const key = crypto2.createHash("sha256").update(secret).digest();
+  const iv = crypto2.randomBytes(12);
+  const cipher = crypto2.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}.${tag.toString("hex")}.${encrypted.toString("hex")}`;
+}
+function decryptConfig(encryptedString, secret) {
+  try {
+    const [ivHex, tagHex, dataHex] = encryptedString.split(".");
+    if (!ivHex || !tagHex || !dataHex) return null;
+    const key = crypto2.createHash("sha256").update(secret).digest();
+    const decipher = crypto2.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+async function getEffectiveFolderConfig(req) {
+  const env = getDriveEnv();
+  if (memoryFolderStore && memoryFolderStore.foldersVerified) {
+    return { ...memoryFolderStore, source: "memory" };
+  }
+  if (req?.headers?.cookie) {
+    const cookies = req.headers.cookie.split(";").map((c) => c.trim());
+    const cookie = cookies.find((c) => c.startsWith("iec_drive_folders="));
+    if (cookie) {
+      const encryptedValue = cookie.replace("iec_drive_folders=", "");
+      const decrypted = decryptConfig(encryptedValue, env.stateSecret);
+      if (decrypted) {
+        try {
+          const parsed = JSON.parse(decrypted);
+          if (parsed.photoFolderId && parsed.videoFolderId) {
+            const config = { ...parsed, source: "cookie" };
+            memoryFolderStore = config;
+            return config;
+          }
+        } catch {
+        }
+      }
+    }
+  }
+  const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${env.firebaseProjectId}/databases/(default)/documents/system_settings/google_drive`;
+  try {
+    const res = await fetch(firestoreUrl);
+    if (res.ok) {
+      const doc = await res.json();
+      const fields = doc.fields || {};
+      const rootFolderId = fields.rootFolderId?.stringValue;
+      const photoFolderId = fields.photoFolderId?.stringValue;
+      const videoFolderId = fields.videoFolderId?.stringValue;
+      if (photoFolderId && videoFolderId) {
+        const config = {
+          rootFolderId: rootFolderId || env.rootFolderId,
+          photoFolderId,
+          videoFolderId,
+          rootFolderName: fields.rootFolderName?.stringValue,
+          photoFolderName: fields.photoFolderName?.stringValue,
+          videoFolderName: fields.videoFolderName?.stringValue,
+          foldersVerified: fields.foldersVerified?.booleanValue ?? true,
+          verifiedAt: fields.verifiedAt?.stringValue,
+          source: "firestore"
+        };
+        memoryFolderStore = config;
+        return config;
+      }
+    }
+  } catch {
+  }
+  return {
+    rootFolderId: env.rootFolderId,
+    photoFolderId: env.photoFolderId,
+    videoFolderId: env.videoFolderId,
+    foldersVerified: false,
+    source: "environment"
+  };
+}
+async function saveEffectiveFolderConfig(config) {
+  const env = getDriveEnv();
+  const current = await getEffectiveFolderConfig();
+  const updated = {
+    rootFolderId: config.rootFolderId || current.rootFolderId || env.rootFolderId,
+    photoFolderId: config.photoFolderId || current.photoFolderId || env.photoFolderId,
+    videoFolderId: config.videoFolderId || current.videoFolderId || env.videoFolderId,
+    rootFolderName: config.rootFolderName ?? current.rootFolderName,
+    photoFolderName: config.photoFolderName ?? current.photoFolderName,
+    videoFolderName: config.videoFolderName ?? current.videoFolderName,
+    foldersVerified: config.foldersVerified ?? true,
+    verifiedAt: config.verifiedAt || (/* @__PURE__ */ new Date()).toISOString(),
+    source: "firestore"
+  };
+  memoryFolderStore = updated;
+  const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${env.firebaseProjectId}/databases/(default)/documents/system_settings/google_drive`;
+  try {
+    const fields = {
+      rootFolderId: { stringValue: updated.rootFolderId },
+      photoFolderId: { stringValue: updated.photoFolderId },
+      videoFolderId: { stringValue: updated.videoFolderId },
+      foldersVerified: { booleanValue: updated.foldersVerified },
+      updatedAt: { stringValue: (/* @__PURE__ */ new Date()).toISOString() }
+    };
+    if (updated.rootFolderName) fields.rootFolderName = { stringValue: updated.rootFolderName };
+    if (updated.photoFolderName) fields.photoFolderName = { stringValue: updated.photoFolderName };
+    if (updated.videoFolderName) fields.videoFolderName = { stringValue: updated.videoFolderName };
+    if (updated.verifiedAt) fields.verifiedAt = { stringValue: updated.verifiedAt };
+    await fetch(firestoreUrl, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields })
+    });
+  } catch (err) {
+    console.warn("Could not persist folder config to Firestore system_settings (memory store active):", err);
+  }
+  return updated;
+}
+function buildFolderCookie(config) {
+  const env = getDriveEnv();
+  const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
+  const encrypted = encryptConfig(JSON.stringify(config), env.stateSecret);
+  return [
+    `iec_drive_folders=${encrypted}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=31536000",
+    // 1 year
+    isProd ? "Secure" : ""
+  ].filter(Boolean).join("; ");
 }
 
 // api-src/_lib/authMiddleware.ts
@@ -233,17 +433,62 @@ async function handler(req, res) {
   }
   try {
     const env = getDriveEnv();
-    const rootFolder = await createDriveFolder("IEC Industrial Evidence Vault", void 0, req);
-    const photoFolder = await createDriveFolder("Photo Evidence", rootFolder.id, req);
-    const videoFolder = await createDriveFolder("Video Evidence", rootFolder.id, req);
+    let rawBody = "";
+    for await (const chunk of req) {
+      rawBody += chunk;
+    }
+    const body = rawBody ? JSON.parse(rawBody) : {};
+    const requestedRootId = body.rootFolderId || env.rootFolderId;
+    let rootFolder;
+    const rootCheck = await checkFolderAccess(requestedRootId, req);
+    if (rootCheck.accessible) {
+      rootFolder = { id: requestedRootId, name: rootCheck.name || "Configured Evidence Root" };
+    } else {
+      const existingVault = await searchFolder("IEC Industrial Evidence Vault", void 0, req);
+      if (existingVault) {
+        rootFolder = existingVault;
+      } else {
+        rootFolder = await createDriveFolder("IEC Industrial Evidence Vault", void 0, req);
+      }
+    }
+    let photoFolder = await searchFolder("Photo Evidence", rootFolder.id, req);
+    if (!photoFolder) {
+      photoFolder = await createDriveFolder("Photo Evidence", rootFolder.id, req);
+    }
+    let videoFolder = await searchFolder("Video Evidence", rootFolder.id, req);
+    if (!videoFolder) {
+      videoFolder = await createDriveFolder("Video Evidence", rootFolder.id, req);
+    }
+    const savedConfig = await saveEffectiveFolderConfig({
+      rootFolderId: rootFolder.id,
+      photoFolderId: photoFolder.id,
+      videoFolderId: videoFolder.id,
+      rootFolderName: rootFolder.name,
+      photoFolderName: photoFolder.name,
+      videoFolderName: videoFolder.name,
+      foldersVerified: true,
+      verifiedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    res.setHeader("Set-Cookie", buildFolderCookie(savedConfig));
     return sendJson(res, 200, {
       success: true,
-      message: "Evidence folders provisioned successfully in your Google Drive under drive.file scope.",
+      message: "Evidence folders provisioned and verified in Google Drive under drive.file scope.",
       data: {
         rootFolderId: rootFolder.id,
+        rootFolderName: rootFolder.name,
         photoFolderId: photoFolder.id,
+        photoFolderName: photoFolder.name,
         videoFolderId: videoFolder.id,
-        instructions: "To make these the permanent folders, optionally add GOOGLE_DRIVE_ROOT_FOLDER_ID, GOOGLE_DRIVE_PHOTO_FOLDER_ID, and GOOGLE_DRIVE_VIDEO_FOLDER_ID to your Vercel Environment Variables."
+        videoFolderName: videoFolder.name,
+        verified: true,
+        instructions: {
+          note: "To preserve these folder destinations across all serverless deployments, add these environment variables to Vercel Production Settings:",
+          envVars: {
+            GOOGLE_DRIVE_ROOT_FOLDER_ID: rootFolder.id,
+            GOOGLE_DRIVE_PHOTO_FOLDER_ID: photoFolder.id,
+            GOOGLE_DRIVE_VIDEO_FOLDER_ID: videoFolder.id
+          }
+        }
       }
     });
   } catch (err) {

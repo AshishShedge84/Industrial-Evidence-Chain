@@ -25,6 +25,14 @@ export interface GoogleDriveStatus {
     photoFolderId: string;
     videoFolderId: string;
   };
+  effectiveFolders?: {
+    rootFolderId: string;
+    photoFolderId: string;
+    videoFolderId: string;
+    source?: string;
+    foldersVerified?: boolean;
+    verifiedAt?: string;
+  };
   setupStatus: {
     hasClientId: boolean;
     hasClientSecret: boolean;
@@ -301,15 +309,94 @@ class GoogleDriveService {
   }
 
   /**
-   * Automatically creates certified evidence folders in the authenticated user's Google Drive.
+   * Fetches short-lived Google Picker OAuth token and API configuration
+   */
+  async getPickerToken(): Promise<
+    ApiResponse<{
+      accessToken: string;
+      clientId: string;
+      developerKey: string;
+      appId: string;
+    }>
+  > {
+    try {
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/integrations/google-drive/picker-token', { headers });
+      const data = (await res.json()) as any;
+      return data;
+    } catch (err: any) {
+      return {
+        success: false,
+        error: {
+          code: 'PICKER_TOKEN_FETCH_ERROR',
+          message: err.message || 'Failed to retrieve Google Picker token',
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Verifies folder access with Google Drive API and optionally assigns it as an active destination
+   */
+  async verifyFolder(params: {
+    folderId: string;
+    folderType?: 'root' | 'photos' | 'videos';
+    folderName?: string;
+  }): Promise<
+    ApiResponse<{
+      id: string;
+      name: string;
+      mimeType: string;
+      accessible: boolean;
+      canAddChildren: boolean;
+      parents?: string[];
+      folderType?: string;
+      verified: boolean;
+    }>
+  > {
+    try {
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/integrations/google-drive/verify-folder', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(params),
+      });
+
+      const data = (await res.json()) as any;
+      return data;
+    } catch (err: any) {
+      return {
+        success: false,
+        error: {
+          code: 'VERIFY_FOLDER_ERROR',
+          message: err.message || 'Failed to verify folder with Google Drive API',
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Automatically creates or locates certified evidence folders in Google Drive.
    * Guarantees 100% drive.file scope access without permission errors.
    */
-  async createFolders(): Promise<
+  async createFolders(rootFolderId?: string): Promise<
     ApiResponse<{
       rootFolderId: string;
+      rootFolderName?: string;
       photoFolderId: string;
+      photoFolderName?: string;
       videoFolderId: string;
-      instructions: string;
+      videoFolderName?: string;
+      verified?: boolean;
+      instructions?: any;
     }>
   > {
     try {
@@ -320,6 +407,7 @@ class GoogleDriveService {
       const res = await fetch('/api/integrations/google-drive/create-folders', {
         method: 'POST',
         headers,
+        body: JSON.stringify({ rootFolderId }),
       });
 
       const data = (await res.json()) as any;

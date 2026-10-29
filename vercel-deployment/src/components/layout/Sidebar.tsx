@@ -24,7 +24,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Users', href: '/admin/users', icon: Users, permission: 'users:read' },
-  { name: 'Audit', href: ROUTES.AUDIT, icon: FileText, permission: 'users:read' },
+  { name: 'System Audit Reports', href: ROUTES.AUDIT, icon: FileText, permission: 'audit:read' },
   { name: 'Settings', href: '/settings', icon: Settings, permission: 'system:configure' },
 ] as const;
 
@@ -92,7 +92,7 @@ export function Sidebar() {
             <div>
               {sidebarOpen && (
                 <p className="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  System
+                  {user?.role === 'Auditor' ? 'Compliance' : 'System'}
                 </p>
               )}
               <ul className="space-y-1" role="list">
