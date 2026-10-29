@@ -16,7 +16,11 @@ function cleanFirestoreDoc(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
-      result[key] = value;
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        result[key] = cleanFirestoreDoc(value);
+      } else {
+        result[key] = value;
+      }
     }
   }
   return result;

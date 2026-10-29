@@ -14,6 +14,16 @@ interface NotificationCenterProps {
   onClose: () => void;
 }
 
+function safeText(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.message || val.error || val.reason || val.name || JSON.stringify(val);
+  }
+  return String(val);
+}
+
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
   const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, sendReply } = useNotifications();
@@ -251,7 +261,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                                 : 'font-semibold text-gray-900 dark:text-white'
                             }`}
                           >
-                            {notif.title}
+                            {safeText(notif.title)}
                           </p>
                           <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0">
                             {formatRelativeTime(notif.createdAt)}
@@ -261,14 +271,14 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                         {/* Sender Name + Type Badge */}
                         <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <span className="text-[12px] font-semibold text-primary-600 dark:text-primary-400">
-                            {notif.senderName}
+                            {safeText(notif.senderName)}
                           </span>
                           {getTypeBadge(notif.type)}
                         </div>
 
                         {/* Message Preview */}
                         <p className="text-[12px] text-gray-600 dark:text-gray-300 leading-relaxed break-words">
-                          {notif.message}
+                          {safeText(notif.message)}
                         </p>
 
                         {/* Previous Reply Display (if already replied) */}
@@ -279,7 +289,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                               <span>You replied:</span>
                             </div>
                             <p className="text-gray-600 dark:text-gray-300 italic">
-                              "{notif.replyText}"
+                              "{safeText(notif.replyText)}"
                             </p>
                           </div>
                         )}

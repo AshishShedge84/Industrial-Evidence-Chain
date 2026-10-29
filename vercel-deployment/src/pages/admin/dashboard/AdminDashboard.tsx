@@ -68,8 +68,8 @@ export function AdminDashboard({ user }: { user: User }) {
               desc = `${log.entityType}: ${log.entityId || ''}`.trim();
             }
 
-            const performer = log.performedBy || log.userEmail || (log.userId ? `User ${String(log.userId).substring(0, 8)}` : 'System');
-            const actionLabel = (log.action || 'Audit Event').replace(/([A-Z])/g, ' $1').trim();
+            const performer = typeof log.performedBy === 'string' && log.performedBy ? log.performedBy : (log.userEmail || (log.userId ? `User ${String(log.userId).substring(0, 8)}` : 'System'));
+            const actionLabel = typeof log.action === 'string' ? (log.action || 'Audit Event').replace(/([A-Z])/g, ' $1').trim() : 'Audit Event';
 
             return {
               id: log.id,
