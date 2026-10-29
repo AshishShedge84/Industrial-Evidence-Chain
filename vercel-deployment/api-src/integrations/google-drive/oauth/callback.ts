@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { verifyOAuthState, exchangeCodeForTokens, saveDriveIntegration } from '../../../_lib/driveOAuth.js';
+import { verifyOAuthState, exchangeCodeForTokens, saveDriveIntegration, encryptToken } from '../../../_lib/driveOAuth.js';
 import { sendJson } from '../../../_lib/authMiddleware.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -46,17 +46,36 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       console.warn('Warning: Google did not return a refresh_token. Ensure prompt=consent is enforced.');
     }
 
-    // 3. Save refresh token securely server-side
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+    const cookiesToSet = [
+      'iec_drive_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+    ];
+
+    // 3. Save refresh token securely server-side and issue encrypted HttpOnly session cookie
     if (tokenResult.refreshToken) {
       await saveDriveIntegration({
         refreshToken: tokenResult.refreshToken,
         accountEmail: tokenResult.accountEmail,
         scope: tokenResult.scope,
       });
+
+      const encrypted = encryptToken(tokenResult.refreshToken);
+      cookiesToSet.push(
+        [
+          `iec_drive_refresh_token=${encrypted}`,
+          'Path=/',
+          'HttpOnly',
+          'SameSite=Lax',
+          'Max-Age=31536000', // 1 year persistence
+          isProd ? 'Secure' : '',
+        ]
+          .filter(Boolean)
+          .join('; ')
+      );
     }
 
-    // 4. Clear the state cookie
-    res.setHeader('Set-Cookie', 'iec_drive_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
+    // 4. Set cookies
+    res.setHeader('Set-Cookie', cookiesToSet);
 
     // 5. Redirect back to application with success indicators (NEVER exposing tokens to URL or client)
     const successUrl = new URL(returnTo, `http://${req.headers.host || 'localhost'}`);

@@ -22,7 +22,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const env = getDriveEnv();
 
     // 2. Verify Google Drive integration status
-    const integration = await getStoredDriveIntegration();
+    const integration = await getStoredDriveIntegration(req);
     if (!integration || !integration.refreshToken) {
       return sendJson(res, 400, {
         success: false,
@@ -64,14 +64,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         : env.photoFolderId;
 
     // 5. Generate secure, authorized resumable upload session directly on Google Drive
-    const session = await createResumableUploadSession({
-      folderId: targetFolderId,
-      fileName: fileName.replace(/\s+/g, '_'),
-      mimeType,
-      fileSize: Number(fileSize) || 0,
-      evidenceId,
-      clientChecksum,
-    });
+    const session = await createResumableUploadSession(
+      {
+        folderId: targetFolderId,
+        fileName: fileName.replace(/\s+/g, '_'),
+        mimeType,
+        fileSize: Number(fileSize) || 0,
+        evidenceId,
+        clientChecksum,
+      },
+      req
+    );
 
     return sendJson(res, 200, {
       success: true,

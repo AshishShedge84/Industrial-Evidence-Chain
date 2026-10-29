@@ -68,13 +68,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const targetFolderId = fileType === 'video' ? env.videoFolderId : env.photoFolderId;
 
     // 3. Upload to Google Drive and compute SHA-256
-    const uploadResult = await uploadFileToDrive({
-      folderId: targetFolderId,
-      fileName,
-      mimeType,
-      fileBuffer,
-      description: evidenceId ? `IEC Evidence for Record ID: ${evidenceId}` : undefined,
-    });
+    const uploadResult = await uploadFileToDrive(
+      {
+        folderId: targetFolderId,
+        fileName,
+        mimeType,
+        fileBuffer,
+        description: evidenceId ? `IEC Evidence for Record ID: ${evidenceId}` : undefined,
+      },
+      req
+    );
 
     // 4. Validate client checksum if provided
     if (clientChecksum && clientChecksum.toLowerCase() !== uploadResult.checksum.toLowerCase()) {

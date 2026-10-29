@@ -12,6 +12,7 @@ const endpoints = [
   'api-src/integrations/google-drive/disconnect.ts',
   'api-src/integrations/google-drive/upload.ts',
   'api-src/integrations/google-drive/create-upload-session.ts',
+  'api-src/integrations/google-drive/create-folders.ts',
   'api-src/integrations/google-drive/file.ts',
 ];
 

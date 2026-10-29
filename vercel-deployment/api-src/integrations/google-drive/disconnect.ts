@@ -10,6 +10,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   try {
     await clearDriveIntegration();
+    res.setHeader('Set-Cookie', 'iec_drive_refresh_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
     return sendJson(res, 200, {
       success: true,
       message: 'Google Drive connection revoked and cleared from server storage.',

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { IncomingMessage } from 'http';
 import { DRIVE_CONFIG, getDriveEnv } from './driveConfig.js';
 
 interface OAuthStatePayload {
@@ -235,9 +236,40 @@ export async function saveDriveIntegration(data: {
 }
 
 /**
+ * Encrypt a sensitive token using AES-256-GCM and the server secret
+ */
+export function encryptToken(token: string): string {
+  const env = getDriveEnv();
+  const key = crypto.createHash('sha256').update(env.stateSecret).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('hex')}.${tag.toString('hex')}.${encrypted.toString('hex')}`;
+}
+
+/**
+ * Decrypt a token previously encrypted with encryptToken
+ */
+export function decryptToken(encryptedString: string): string | null {
+  try {
+    const [ivHex, tagHex, dataHex] = encryptedString.split('.');
+    if (!ivHex || !tagHex || !dataHex) return null;
+    const env = getDriveEnv();
+    const key = crypto.createHash('sha256').update(env.stateSecret).digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Retrieve the server-side stored refresh token
  */
-export async function getStoredDriveIntegration(): Promise<{
+export async function getStoredDriveIntegration(req?: IncomingMessage): Promise<{
   refreshToken?: string;
   accountEmail?: string;
   scope?: string;
@@ -255,12 +287,30 @@ export async function getStoredDriveIntegration(): Promise<{
     };
   }
 
-  // 2. In-memory session store
+  // 2. Encrypted HttpOnly cookie in the incoming request (survives cold starts and container recycles)
+  if (req?.headers?.cookie) {
+    const cookies = req.headers.cookie.split(';').map((c) => c.trim());
+    const tokenCookie = cookies.find((c) => c.startsWith('iec_drive_refresh_token='));
+    if (tokenCookie) {
+      const encryptedValue = tokenCookie.replace('iec_drive_refresh_token=', '');
+      const decryptedToken = decryptToken(encryptedValue);
+      if (decryptedToken) {
+        return {
+          refreshToken: decryptedToken,
+          accountEmail: 'Authorized via Secure Session Cookie',
+          scope: DRIVE_CONFIG.SCOPES[0],
+          connectedAt: new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  // 3. In-memory session store
   if (memoryTokenStore?.refreshToken) {
     return memoryTokenStore;
   }
 
-  // 3. Firestore REST document read
+  // 4. Firestore REST document read
   const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${env.firebaseProjectId}/databases/(default)/documents/system_integrations/google_drive`;
   try {
     const res = await fetch(firestoreUrl);

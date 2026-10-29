@@ -24,7 +24,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   try {
     // 2. Stream binary from Google Drive v3
-    const file = await downloadFileFromDrive(fileId);
+    const file = await downloadFileFromDrive(fileId, req);
 
     res.statusCode = 200;
     res.setHeader('Content-Type', file.mimeType);

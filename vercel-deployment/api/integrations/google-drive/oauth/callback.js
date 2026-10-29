@@ -134,6 +134,15 @@ async function saveDriveIntegration(data) {
     console.error("Note: Firestore server-side persistence fallback to memory store", err);
   }
 }
+function encryptToken(token) {
+  const env = getDriveEnv();
+  const key = crypto.createHash("sha256").update(env.stateSecret).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}.${tag.toString("hex")}.${encrypted.toString("hex")}`;
+}
 
 // api-src/_lib/authMiddleware.ts
 function sendJson(res, statusCode, data) {
@@ -175,14 +184,30 @@ async function handler(req, res) {
     if (!tokenResult.refreshToken) {
       console.warn("Warning: Google did not return a refresh_token. Ensure prompt=consent is enforced.");
     }
+    const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
+    const cookiesToSet = [
+      "iec_drive_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+    ];
     if (tokenResult.refreshToken) {
       await saveDriveIntegration({
         refreshToken: tokenResult.refreshToken,
         accountEmail: tokenResult.accountEmail,
         scope: tokenResult.scope
       });
+      const encrypted = encryptToken(tokenResult.refreshToken);
+      cookiesToSet.push(
+        [
+          `iec_drive_refresh_token=${encrypted}`,
+          "Path=/",
+          "HttpOnly",
+          "SameSite=Lax",
+          "Max-Age=31536000",
+          // 1 year persistence
+          isProd ? "Secure" : ""
+        ].filter(Boolean).join("; ")
+      );
     }
-    res.setHeader("Set-Cookie", "iec_drive_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+    res.setHeader("Set-Cookie", cookiesToSet);
     const successUrl = new URL(returnTo, `http://${req.headers.host || "localhost"}`);
     successUrl.searchParams.set("drive_connected", "success");
     if (tokenResult.accountEmail) {

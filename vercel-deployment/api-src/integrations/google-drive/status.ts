@@ -13,7 +13,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   try {
     const env = getDriveEnv();
     const isConfigured = Boolean(env.clientId && env.clientSecret);
-    const integration = await getStoredDriveIntegration();
+    const integration = await getStoredDriveIntegration(req);
     const isConnected = Boolean(integration?.refreshToken);
 
     let folderStatus: {
@@ -29,9 +29,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (isConnected) {
       // Test folder access in parallel
       const [rootCheck, photoCheck, videoCheck] = await Promise.all([
-        checkFolderAccess(env.rootFolderId),
-        checkFolderAccess(env.photoFolderId),
-        checkFolderAccess(env.videoFolderId),
+        checkFolderAccess(env.rootFolderId, req),
+        checkFolderAccess(env.photoFolderId, req),
+        checkFolderAccess(env.videoFolderId, req),
       ]);
 
       folderStatus = {

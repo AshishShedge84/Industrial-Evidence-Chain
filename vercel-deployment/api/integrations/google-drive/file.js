@@ -33,6 +33,7 @@ function getDriveEnv() {
 }
 
 // api-src/_lib/driveOAuth.ts
+import crypto from "crypto";
 var memoryTokenStore = null;
 async function refreshAccessToken(refreshToken) {
   const env = getDriveEnv();
@@ -59,7 +60,21 @@ async function refreshAccessToken(refreshToken) {
     expiresIn: data.expires_in
   };
 }
-async function getStoredDriveIntegration() {
+function decryptToken(encryptedString) {
+  try {
+    const [ivHex, tagHex, dataHex] = encryptedString.split(".");
+    if (!ivHex || !tagHex || !dataHex) return null;
+    const env = getDriveEnv();
+    const key = crypto.createHash("sha256").update(env.stateSecret).digest();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+async function getStoredDriveIntegration(req) {
   const env = getDriveEnv();
   if (env.configuredRefreshToken) {
     return {
@@ -68,6 +83,22 @@ async function getStoredDriveIntegration() {
       scope: DRIVE_CONFIG.SCOPES[0],
       connectedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
+  }
+  if (req?.headers?.cookie) {
+    const cookies = req.headers.cookie.split(";").map((c) => c.trim());
+    const tokenCookie = cookies.find((c) => c.startsWith("iec_drive_refresh_token="));
+    if (tokenCookie) {
+      const encryptedValue = tokenCookie.replace("iec_drive_refresh_token=", "");
+      const decryptedToken = decryptToken(encryptedValue);
+      if (decryptedToken) {
+        return {
+          refreshToken: decryptedToken,
+          accountEmail: "Authorized via Secure Session Cookie",
+          scope: DRIVE_CONFIG.SCOPES[0],
+          connectedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+    }
   }
   if (memoryTokenStore?.refreshToken) {
     return memoryTokenStore;
@@ -96,11 +127,11 @@ async function getStoredDriveIntegration() {
 
 // api-src/_lib/driveClient.ts
 var cachedAccessToken = null;
-async function getValidAccessToken() {
+async function getValidAccessToken(req) {
   if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now() + 6e4) {
     return cachedAccessToken.token;
   }
-  const integration = await getStoredDriveIntegration();
+  const integration = await getStoredDriveIntegration(req);
   if (!integration || !integration.refreshToken) {
     throw new Error("Google Drive integration is not connected. Administrator must authenticate Google Drive first.");
   }
@@ -111,8 +142,8 @@ async function getValidAccessToken() {
   };
   return cachedAccessToken.token;
 }
-async function downloadFileFromDrive(fileId) {
-  const accessToken = await getValidAccessToken();
+async function downloadFileFromDrive(fileId, req) {
+  const accessToken = await getValidAccessToken(req);
   const metaRes = await fetch(`${DRIVE_CONFIG.DRIVE_API_BASE}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
@@ -204,7 +235,7 @@ async function handler(req, res) {
     return sendJson(res, 401, { error: "Unauthorized: Authentication required to retrieve industrial evidence media." });
   }
   try {
-    const file = await downloadFileFromDrive(fileId);
+    const file = await downloadFileFromDrive(fileId, req);
     res.statusCode = 200;
     res.setHeader("Content-Type", file.mimeType);
     res.setHeader("Content-Length", file.size.toString());

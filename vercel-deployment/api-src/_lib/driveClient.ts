@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { IncomingMessage } from 'http';
 import { DRIVE_CONFIG, getDriveEnv } from './driveConfig.js';
 import { getStoredDriveIntegration, refreshAccessToken } from './driveOAuth.js';
 
@@ -7,13 +8,13 @@ let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 /**
  * Get a valid access token for Google Drive API calls
  */
-export async function getValidAccessToken(): Promise<string> {
+export async function getValidAccessToken(req?: IncomingMessage): Promise<string> {
   // Check cached token (with 60-second buffer)
   if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now() + 60000) {
     return cachedAccessToken.token;
   }
 
-  const integration = await getStoredDriveIntegration();
+  const integration = await getStoredDriveIntegration(req);
   if (!integration || !integration.refreshToken) {
     throw new Error('Google Drive integration is not connected. Administrator must authenticate Google Drive first.');
   }
@@ -38,9 +39,9 @@ export interface FolderCheckResult {
 /**
  * Check whether a configured folder is accessible under the drive.file scope
  */
-export async function checkFolderAccess(folderId: string): Promise<FolderCheckResult> {
+export async function checkFolderAccess(folderId: string, req?: IncomingMessage): Promise<FolderCheckResult> {
   try {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await getValidAccessToken(req);
     const url = `${DRIVE_CONFIG.DRIVE_API_BASE}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed,capabilities&supportsAllDrives=true`;
 
     const res = await fetch(url, {
@@ -108,9 +109,10 @@ export interface ResumableSessionResult {
  * The client can transfer bytes directly to Google Drive via PUT without passing through Vercel.
  */
 export async function createResumableUploadSession(
-  params: CreateResumableSessionParams
+  params: CreateResumableSessionParams,
+  req?: IncomingMessage
 ): Promise<ResumableSessionResult> {
-  const accessToken = await getValidAccessToken();
+  const accessToken = await getValidAccessToken(req);
 
   const metadata = {
     name: params.fileName,
@@ -179,8 +181,11 @@ export interface DriveUploadResult {
 /**
  * Upload binary file to Google Drive using multipart upload
  */
-export async function uploadFileToDrive(params: DriveUploadParams): Promise<DriveUploadResult> {
-  const accessToken = await getValidAccessToken();
+export async function uploadFileToDrive(
+  params: DriveUploadParams,
+  req?: IncomingMessage
+): Promise<DriveUploadResult> {
+  const accessToken = await getValidAccessToken(req);
 
   // 1. Calculate deterministic SHA-256 checksum of the incoming file buffer
   const hash = crypto.createHash('sha256').update(params.fileBuffer).digest('hex');
@@ -239,13 +244,16 @@ export async function uploadFileToDrive(params: DriveUploadParams): Promise<Driv
 /**
  * Fetch binary media file from Google Drive for authorized streaming
  */
-export async function downloadFileFromDrive(fileId: string): Promise<{
+export async function downloadFileFromDrive(
+  fileId: string,
+  req?: IncomingMessage
+): Promise<{
   arrayBuffer: ArrayBuffer;
   name: string;
   mimeType: string;
   size: number;
 }> {
-  const accessToken = await getValidAccessToken();
+  const accessToken = await getValidAccessToken(req);
 
   // Get file metadata first
   const metaRes = await fetch(`${DRIVE_CONFIG.DRIVE_API_BASE}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, {
@@ -275,4 +283,42 @@ export async function downloadFileFromDrive(fileId: string): Promise<{
     mimeType: meta.mimeType || 'application/octet-stream',
     size: Number(meta.size) || arrayBuffer.byteLength,
   };
+}
+
+/**
+ * Creates a folder in Google Drive under drive.file scope.
+ * Any folder created by the app is permanently authorized under drive.file.
+ */
+export async function createDriveFolder(
+  name: string,
+  parentFolderId?: string,
+  req?: IncomingMessage
+): Promise<{ id: string; name: string }> {
+  const accessToken = await getValidAccessToken(req);
+
+  const metadata: Record<string, any> = {
+    name,
+    mimeType: 'application/vnd.google-apps.folder',
+  };
+
+  if (parentFolderId) {
+    metadata.parents = [parentFolderId];
+  }
+
+  const res = await fetch(`${DRIVE_CONFIG.DRIVE_API_BASE}/files?fields=id,name`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(metadata),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to create folder in Google Drive (HTTP ${res.status}): ${errText}`);
+  }
+
+  const data = (await res.json()) as any;
+  return { id: data.id, name: data.name };
 }
