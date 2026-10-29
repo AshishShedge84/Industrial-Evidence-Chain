@@ -12,12 +12,31 @@ import { ProfilePage } from '@pages/profile';
 import { SettingsPage } from '@pages/settings';
 import { UsersPage } from '@pages/admin';
 import { NotFoundPage, UnauthorizedPage, RouteErrorPage } from '@pages/system';
+import { PrivacyPolicyPage, TermsOfServicePage } from '../pages/legal';
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <PublicRoute><LoginPage /></PublicRoute>,
     errorElement: <RouteErrorPage />,
+  },
+  {
+    path: '/privacy-policy',
+    element: <PrivacyPolicyPage />,
+    errorElement: <RouteErrorPage />,
+  },
+  {
+    path: '/privacy',
+    element: <Navigate to="/privacy-policy" replace />,
+  },
+  {
+    path: '/terms-of-service',
+    element: <TermsOfServicePage />,
+    errorElement: <RouteErrorPage />,
+  },
+  {
+    path: '/terms',
+    element: <Navigate to="/terms-of-service" replace />,
   },
   {
     path: '/',

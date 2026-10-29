@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useApp } from '@context/AppContext';
 import { useAuth } from '@hooks/useAuth';
 import { BrandMark } from '@components/ui/BrandMark';
@@ -126,7 +126,14 @@ export function Sidebar() {
 
         <div className="p-4 border-t border-black/5 dark:border-white/5 flex justify-center lg:justify-between items-center">
           {sidebarOpen && (
-            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 ml-2">IEC Platform v2.0</p>
+            <div className="flex flex-col ml-2">
+              <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500">IEC Platform v2.5</p>
+              <div className="flex items-center gap-1.5 text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                <Link to="/privacy-policy" className="hover:text-gray-700 dark:hover:text-gray-300 hover:underline">Privacy</Link>
+                <span>•</span>
+                <Link to="/terms-of-service" className="hover:text-gray-700 dark:hover:text-gray-300 hover:underline">Terms</Link>
+              </div>
+            </div>
           )}
           <button
             onClick={toggleSidebar}

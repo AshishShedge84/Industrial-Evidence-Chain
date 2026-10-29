@@ -6,6 +6,7 @@ import { Settings, Loader2, ChevronLeft, Calendar } from 'lucide-react';
 import type { Asset, AssetHistoryEntry } from '@type-defs/asset';
 import { formatDate } from '@utils/date';
 import { assetService } from '@services/assets/assetService';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 export function AssetHistoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -105,7 +106,7 @@ export function AssetHistoryPage() {
                     <div className="hidden md:flex flex-1 justify-end pt-1">
                       <div className="text-right pr-8">
                         <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{entry.action}</p>
-                        <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">by {entry.performedBy}</p>
+                        <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">by <UserDisplayName userId={entry.performedBy} fallback="Authorized Staff" /></p>
                       </div>
                     </div>
                     
@@ -118,7 +119,7 @@ export function AssetHistoryPage() {
                     <div className="flex-1 min-w-0 pt-1 pb-4 border-b border-black/5 md:border-0 last:border-0 md:pl-8">
                       <div className="md:hidden mb-2">
                         <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{entry.action}</p>
-                        <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">by {entry.performedBy}</p>
+                        <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">by <UserDisplayName userId={entry.performedBy} fallback="Authorized Staff" /></p>
                       </div>
                       <div className="flex items-center gap-2 text-[13px] font-medium text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-white/5 inline-flex px-3 py-1.5 rounded-lg border border-black/5 dark:border-white/10">
                         <Calendar className="h-3.5 w-3.5" />

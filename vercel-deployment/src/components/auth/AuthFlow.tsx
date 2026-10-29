@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Eye, EyeOff, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@hooks/useAuth';
 import { ROUTES } from '@constants/routes';
@@ -344,8 +344,15 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
                 </div>
 
                 <div className="pt-2 pb-2">
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center">
-                    By continuing, you agree to the Industrial Evidence Chain Terms of Service and Privacy Policy.
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center leading-normal">
+                    By continuing, you agree to the Industrial Evidence Chain{' '}
+                    <Link to="/terms-of-service" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Terms of Service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy-policy" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Privacy Policy
+                    </Link>.
                   </p>
                 </div>
 
@@ -382,6 +389,16 @@ export function AuthFlow({ initialMode, onBack }: AuthFlowProps) {
             )}
           </div>
         )}
+        {/* Bottom Legal Links */}
+        <div className="mt-4 pt-3 border-t border-black/5 dark:border-white/5 flex items-center justify-center gap-3 text-[11px] text-gray-400 dark:text-gray-500">
+          <Link to="/privacy-policy" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors underline-offset-4 hover:underline">
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link to="/terms-of-service" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors underline-offset-4 hover:underline">
+            Terms of Service
+          </Link>
+        </div>
       </div>
     </motion.div>
   );

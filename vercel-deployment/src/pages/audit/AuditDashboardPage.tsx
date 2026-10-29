@@ -3,6 +3,7 @@ import { PageContainer } from '@components/layout';
 import { Button } from '@components/ui';
 import { ChevronRight, FileText, Shield, Download, Filter, Search, AlertTriangle, CheckCircle, XCircle, X, Loader2 } from 'lucide-react';
 import { adminService } from '@services/admin/adminService';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 import type { AuditTrailEntry } from '@type-defs/verification';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -278,7 +279,9 @@ export function AuditDashboardPage() {
                         </p>
                       </td>
                       <td className="py-4 px-6">
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{entry.performedBy}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <UserDisplayName userId={entry.performedBy} fallback="System" />
+                        </p>
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-3">
@@ -341,7 +344,9 @@ export function AuditDashboardPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 py-3 border-b border-gray-100">
                   <span className="text-gray-500 text-sm font-medium">Actor</span>
-                  <span className="col-span-2 text-gray-900 dark:text-gray-100 font-medium">{selectedLog.performedBy}</span>
+                  <span className="col-span-2 text-gray-900 dark:text-gray-100 font-medium">
+                    <UserDisplayName userId={selectedLog.performedBy} fallback="System" />
+                  </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 py-3 border-b border-gray-100">
                   <span className="text-gray-500 text-sm font-medium">Evidence Ref</span>

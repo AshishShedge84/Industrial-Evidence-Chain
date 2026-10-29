@@ -20,6 +20,7 @@ import type { Evidence, EvidenceStatus } from '@type-defs/evidence';
 import { ACTIVITY_TYPE_LABELS } from '@constants/activityTypes';
 import { EVIDENCE_STATUS_COLORS } from '@constants/evidenceStatus';
 import { formatDate } from '@utils/date';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 interface EvidenceHeroProps {
   evidence: Evidence;
@@ -161,7 +162,7 @@ export const EvidenceHero: React.FC<EvidenceHeroProps> = ({
               <UserIcon className="w-4 h-4 text-gray-400 shrink-0" />
               <span className="text-gray-500 dark:text-gray-400">Captured:</span>
               <span className="font-medium text-gray-900 dark:text-gray-200">
-                {evidence.userName || `User ${evidence.userId?.substring(0, 8)}`}
+                <UserDisplayName userId={evidence.userId} fallback={evidence.userName || 'Unknown technician'} />
               </span>
               {evidence.userRole && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 font-medium">

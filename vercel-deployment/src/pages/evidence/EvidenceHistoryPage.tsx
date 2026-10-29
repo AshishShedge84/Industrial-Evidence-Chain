@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Evidence } from '@type-defs/evidence';
 import { evidenceService } from '@services/evidence/evidenceService';
+import { UserDisplayName } from '@services/user/userLookupService';
 export function EvidenceHistoryPage() {
   const { id } = useParams<{ id: string }>();
   const [evidenceList, setEvidenceList] = useState<Evidence[]>([]);
@@ -118,9 +119,9 @@ export function EvidenceHistoryPage() {
                     )}
                     <div className="flex items-center gap-2 text-[13px] font-medium text-gray-500">
                       <div className="h-5 w-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600">
-                        {evidence.userId.charAt(0)}
+                        <Tag className="h-3 w-3 text-gray-500" />
                       </div>
-                      User {evidence.userId}
+                      <UserDisplayName userId={evidence.userId} fallback={evidence.userName || 'Unknown technician'} />
                     </div>
                   </div>
                 </div>

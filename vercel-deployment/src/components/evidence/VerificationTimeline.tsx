@@ -13,6 +13,7 @@ import {
 import { SecurityIconBox, Badge } from '@components/ui';
 import type { Evidence, BlockchainProof } from '@type-defs/evidence';
 import { formatDate } from '@utils/date';
+import { userLookupService } from '@services/user/userLookupService';
 
 export interface TimelineEventItem {
   id: string;
@@ -49,7 +50,7 @@ export const VerificationTimeline: React.FC<VerificationTimelineProps> = ({
       id: 'created',
       title: 'Evidence Captured & Formatted',
       role: evidence.userRole || 'Technician',
-      user: evidence.userName || `User ${evidence.userId?.substring(0, 8)}`,
+      user: evidence.userName || userLookupService.resolveUserNameSync(evidence.userId, 'Authorized Technician'),
       timestamp: evidence.createdAt,
       reference: `Activity: ${evidence.activityType}`,
       status: 'completed',

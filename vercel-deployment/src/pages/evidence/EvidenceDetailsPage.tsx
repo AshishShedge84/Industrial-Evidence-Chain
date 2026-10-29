@@ -58,7 +58,7 @@ export function EvidenceDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
-  const canVerify = hasPermission('evidence:verify');
+  const canVerify = hasPermission('evidence:verify') || user?.role === 'Manager' || user?.role === 'Admin';
 
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [asset, setAsset] = useState<Asset | null>(null);
@@ -205,6 +205,7 @@ export function EvidenceDetailsPage() {
 
         if (res.data.status === 'VERIFIED' || res.data.isValid) {
           setVerificationStatus('VERIFIED');
+          fetchEvidenceAndAsset();
         } else if (res.data.status === 'INTEGRITY_MISMATCH' || !res.data.isValid) {
           setVerificationStatus('INTEGRITY_MISMATCH');
         } else {

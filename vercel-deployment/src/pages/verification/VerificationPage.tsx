@@ -38,6 +38,7 @@ import {
 import { apiClient } from '@services/api/apiClient';
 import { formatDate } from '@utils/date';
 import { useAuth } from '@hooks/useAuth';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 interface EvidenceItem {
   evidenceId: string;
@@ -470,15 +471,14 @@ export function VerificationPage() {
           isTampering: false
         };
       }
-      if (inspectingEvidence.anchorStatus !== 'Anchored') {
-        return {
-          type: 'NOT_ANCHORED',
-          title: 'NOT READY FOR VERIFICATION',
-          badge: 'INCOMPLETE',
-          reason: 'Evidence has not yet been anchored to the blockchain ledger.',
-          isTampering: false
-        };
-      }
+      // If not yet verified or encountered an error, ready for manager verification
+      return {
+        type: 'WAITING',
+        title: 'WAITING FOR VERIFICATION',
+        badge: 'PENDING ACTION',
+        reason: 'Evidence is submitted and awaiting manager verification review and cryptographic ledger anchoring.',
+        isTampering: false
+      };
     }
 
     return {
@@ -786,7 +786,7 @@ export function VerificationPage() {
                       {/* Submitter */}
                       <div className="flex items-center gap-1.5 truncate">
                         <UserIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate">{item.userName || 'Technician'}</span>
+                        <span className="truncate"><UserDisplayName userId={item.userId} fallback={item.userName || 'Technician'} /></span>
                       </div>
 
                       {/* Submission Date */}
@@ -927,14 +927,14 @@ export function VerificationPage() {
                         <div>
                           <span className="text-[10px] uppercase font-semibold text-gray-400 block">Verified By</span>
                           <span className="text-gray-900 dark:text-white font-medium truncate block">
-                            {rec.verifiedBy || 'Sarah Connor'}
+                            <UserDisplayName userId={rec.verifiedBy} fallback="Sarah Connor" />
                           </span>
                         </div>
 
                         <div>
                           <span className="text-[10px] uppercase font-semibold text-gray-400 block">Technician</span>
                           <span className="text-gray-900 dark:text-white truncate block">
-                            {rec.userName || 'Technician'}
+                            <UserDisplayName userId={rec.userId} fallback={rec.userName || 'Technician'} />
                           </span>
                         </div>
                       </div>
@@ -1090,7 +1090,7 @@ export function VerificationPage() {
                     <div>
                       <span className="text-gray-400 block text-[10px] uppercase font-semibold">Technician</span>
                       <span className="font-medium text-gray-900 dark:text-white truncate block">
-                        {inspectingEvidence.userName || 'Technician'}
+                        <UserDisplayName userId={inspectingEvidence.userId} fallback={inspectingEvidence.userName || 'Technician'} />
                       </span>
                     </div>
 
@@ -1300,7 +1300,7 @@ export function VerificationPage() {
                               <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${isFailure ? 'bg-rose-500' : isVerifyAction ? 'bg-emerald-500' : 'bg-primary-500'}`} />
                                 <span className="font-semibold text-gray-900 dark:text-white">{log.action}</span>
-                                <span className="text-gray-500">by {log.performedBy}</span>
+                                <span className="text-gray-500">by <UserDisplayName userId={log.performedBy} fallback="System" /></span>
                               </div>
                               <span className="text-gray-400 font-mono text-[11px]">
                                 {formatDate(log.performedAt, { dateStyle: 'short', timeStyle: 'short' })}
@@ -1439,7 +1439,7 @@ export function VerificationPage() {
                   )}
 
                   {/* CASE E: WAITING FOR VERIFICATION */}
-                  {currentVerificationState.type === 'WAITING' && (
+                  {(currentVerificationState.type === 'WAITING' || currentVerificationState.type === 'NOT_ANCHORED') && (
                     <button
                       type="button"
                       onClick={handleExecuteVerification}

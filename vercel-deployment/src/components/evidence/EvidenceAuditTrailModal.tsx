@@ -18,6 +18,7 @@ import { Modal, Button, Badge, SecurityIconBox } from '@components/ui';
 import type { AuditTrailEntry } from '@type-defs/verification';
 import { formatDate } from '@utils/date';
 import { apiClient } from '@services/api/apiClient';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 interface EvidenceAuditTrailModalProps {
   isOpen: boolean;
@@ -182,7 +183,7 @@ export const EvidenceAuditTrailModal: React.FC<EvidenceAuditTrailModalProps> = (
                           {log.action}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                          by <span className="font-medium text-gray-700 dark:text-gray-300">{log.performedBy}</span>
+                          by <span className="font-medium text-gray-700 dark:text-gray-300"><UserDisplayName userId={log.performedBy} fallback="Authorized Operator" /></span>
                         </span>
                       </div>
                     </div>

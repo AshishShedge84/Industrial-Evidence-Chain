@@ -70,6 +70,7 @@ export interface Evidence {
   assignedManagerName?: string;
   transactionId?: string;
   mediaHashes?: string[];
+  anchorStatus?: string;
 }
 
 export interface BlockchainProof {

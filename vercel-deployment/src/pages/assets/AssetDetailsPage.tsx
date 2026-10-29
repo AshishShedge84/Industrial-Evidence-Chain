@@ -13,6 +13,7 @@ import type { Evidence } from '@type-defs/evidence';
 import { formatDate } from '@utils/date';
 import { assetService } from '@services/assets/assetService';
 import { evidenceService } from '@services/evidence/evidenceService';
+import { UserDisplayName } from '@services/user/userLookupService';
 
 export function AssetDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -242,14 +243,14 @@ export function AssetDetailsPage() {
                       <div className="h-8 w-8 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 flex items-center justify-center shadow-sm">
                         <User className="h-4 w-4" />
                       </div>
-                      {asset.assignedTo || 'Unassigned'}
+                      <UserDisplayName userId={asset.assignedTo} fallback="Unassigned" />
                     </dd>
                   </div>
                   
                   <div className="pt-6 border-t border-black/5 dark:border-white/5">
                     <dt className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1.5">Created By</dt>
                     <dd className="flex items-center gap-2 text-[14px] font-medium text-gray-900 dark:text-gray-100">
-                      {asset.createdBy}
+                      <UserDisplayName userId={asset.createdBy} fallback="System Administrator" />
                     </dd>
                   </div>
                   
@@ -403,7 +404,7 @@ export function AssetDetailsPage() {
                         </div>
                         <div className="flex-1 min-w-0 pt-1.5 pb-2 border-b border-black/5 last:border-0">
                           <p className="text-[14px] font-semibold text-gray-900 dark:text-gray-100">{entry.action}</p>
-                          <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">by {entry.performedBy}</p>
+                          <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">by <UserDisplayName userId={entry.performedBy} fallback="Authorized Staff" /></p>
                           <p className="text-[12px] font-medium text-gray-400 dark:text-gray-500 mt-1.5">{formatDate(entry.performedAt)}</p>
                         </div>
                       </div>

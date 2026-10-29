@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { MemojiAvatar } from './MemojiAvatar';
 import { FloatingFeatures } from './FloatingFeatures';
 
@@ -46,6 +47,16 @@ export function LoginWelcome({ onSignIn, onCreateAccount }: LoginWelcomeProps) {
         <p className="mt-5 sm:mt-8 text-xs sm:text-[14px] text-gray-500 dark:text-gray-400 font-medium max-w-[280px]">
           Trusted evidence for every industrial operation.
         </p>
+
+        <div className="mt-4 flex items-center justify-center gap-3 text-[11px] sm:text-xs text-gray-400 dark:text-gray-500">
+          <Link to="/privacy-policy" className="hover:text-gray-800 dark:hover:text-gray-200 transition-colors underline-offset-4 hover:underline">
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link to="/terms-of-service" className="hover:text-gray-800 dark:hover:text-gray-200 transition-colors underline-offset-4 hover:underline">
+            Terms of Service
+          </Link>
+        </div>
       </motion.div>
     </div>
   );

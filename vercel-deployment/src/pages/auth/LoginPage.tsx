@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { LoginWelcome } from '@components/auth/LoginWelcome';
 import { AuthFlow } from '@components/auth/AuthFlow';
 
@@ -49,6 +50,17 @@ export function LoginPage() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Persistent Public Legal Links Footer */}
+      <footer className="absolute bottom-2.5 sm:bottom-4 left-0 right-0 flex items-center justify-center gap-4 text-[11px] sm:text-xs text-gray-400 dark:text-gray-500 z-20 pointer-events-auto">
+        <Link to="/privacy-policy" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors underline-offset-4 hover:underline">
+          Privacy Policy
+        </Link>
+        <span>•</span>
+        <Link to="/terms-of-service" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors underline-offset-4 hover:underline">
+          Terms of Service
+        </Link>
+      </footer>
     </div>
   );
 }
