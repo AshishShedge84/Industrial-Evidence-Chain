@@ -1,4 +1,4 @@
-// api/_lib/driveConfig.ts
+// api-src/_lib/driveConfig.ts
 var DRIVE_CONFIG = {
   // Configured Google Drive Folder IDs
   DEFAULT_ROOT_FOLDER_ID: "1M7uMS4jEqcZcHqAcFo4xFKMw4Zq3U8OR",
@@ -32,7 +32,7 @@ function getDriveEnv() {
   };
 }
 
-// api/_lib/driveOAuth.ts
+// api-src/_lib/driveOAuth.ts
 var memoryTokenStore = null;
 async function refreshAccessToken(refreshToken) {
   const env = getDriveEnv();
@@ -94,7 +94,7 @@ async function getStoredDriveIntegration() {
   return null;
 }
 
-// api/_lib/driveClient.ts
+// api-src/_lib/driveClient.ts
 var cachedAccessToken = null;
 async function getValidAccessToken() {
   if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now() + 6e4) {
@@ -135,7 +135,7 @@ async function downloadFileFromDrive(fileId) {
   };
 }
 
-// api/_lib/authMiddleware.ts
+// api-src/_lib/authMiddleware.ts
 async function authenticateRequest(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -187,7 +187,7 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
-// api/integrations/google-drive/file.ts
+// api-src/integrations/google-drive/file.ts
 async function handler(req, res) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");

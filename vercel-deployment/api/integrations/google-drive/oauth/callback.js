@@ -1,7 +1,7 @@
-// api/_lib/driveOAuth.ts
+// api-src/_lib/driveOAuth.ts
 import crypto from "crypto";
 
-// api/_lib/driveConfig.ts
+// api-src/_lib/driveConfig.ts
 var DRIVE_CONFIG = {
   // Configured Google Drive Folder IDs
   DEFAULT_ROOT_FOLDER_ID: "1M7uMS4jEqcZcHqAcFo4xFKMw4Zq3U8OR",
@@ -35,7 +35,7 @@ function getDriveEnv() {
   };
 }
 
-// api/_lib/driveOAuth.ts
+// api-src/_lib/driveOAuth.ts
 var memoryTokenStore = null;
 function verifyOAuthState(stateString) {
   if (!stateString || typeof stateString !== "string") {
@@ -135,14 +135,14 @@ async function saveDriveIntegration(data) {
   }
 }
 
-// api/_lib/authMiddleware.ts
+// api-src/_lib/authMiddleware.ts
 function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(data));
 }
 
-// api/integrations/google-drive/oauth/callback.ts
+// api-src/integrations/google-drive/oauth/callback.ts
 async function handler(req, res) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");

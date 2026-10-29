@@ -6,12 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 
 const endpoints = [
-  'api/integrations/google-drive/oauth/start.ts',
-  'api/integrations/google-drive/oauth/callback.ts',
-  'api/integrations/google-drive/status.ts',
-  'api/integrations/google-drive/disconnect.ts',
-  'api/integrations/google-drive/upload.ts',
-  'api/integrations/google-drive/file.ts',
+  'api-src/integrations/google-drive/oauth/start.ts',
+  'api-src/integrations/google-drive/oauth/callback.ts',
+  'api-src/integrations/google-drive/status.ts',
+  'api-src/integrations/google-drive/disconnect.ts',
+  'api-src/integrations/google-drive/upload.ts',
+  'api-src/integrations/google-drive/file.ts',
 ];
 
 async function buildAll() {
@@ -19,7 +19,7 @@ async function buildAll() {
 
   for (const entry of endpoints) {
     const entryPath = path.resolve(rootDir, entry);
-    const outPath = entryPath.replace(/\.ts$/, '.js');
+    const outPath = path.resolve(rootDir, entry.replace(/^api-src\//, 'api/').replace(/\.ts$/, '.js'));
 
     await esbuild.build({
       entryPoints: [entryPath],
@@ -42,3 +42,4 @@ buildAll().catch((err) => {
   console.error('Failed to build serverless endpoints:', err);
   process.exit(1);
 });
+

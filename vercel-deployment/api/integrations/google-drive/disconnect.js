@@ -1,4 +1,4 @@
-// api/_lib/driveConfig.ts
+// api-src/_lib/driveConfig.ts
 var DRIVE_CONFIG = {
   // Configured Google Drive Folder IDs
   DEFAULT_ROOT_FOLDER_ID: "1M7uMS4jEqcZcHqAcFo4xFKMw4Zq3U8OR",
@@ -32,7 +32,7 @@ function getDriveEnv() {
   };
 }
 
-// api/_lib/driveOAuth.ts
+// api-src/_lib/driveOAuth.ts
 var memoryTokenStore = null;
 async function clearDriveIntegration() {
   memoryTokenStore = null;
@@ -44,14 +44,14 @@ async function clearDriveIntegration() {
   }
 }
 
-// api/_lib/authMiddleware.ts
+// api-src/_lib/authMiddleware.ts
 function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(data));
 }
 
-// api/integrations/google-drive/disconnect.ts
+// api-src/integrations/google-drive/disconnect.ts
 async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
