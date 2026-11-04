@@ -29,3 +29,7 @@ database/*.sql
 # Local network access notes
 LAN_ACCESS.md
 
+# IDE configurations
+.idea/
+.vscode/
+
